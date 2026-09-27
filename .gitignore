@@ -1,0 +1,18 @@
+# Private project material
+/docs/
+/.hermes.md
+
+# Local agent/editor state
+.omx/
+.orca/
+.hermes/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
