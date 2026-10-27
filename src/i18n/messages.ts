@@ -7,6 +7,19 @@ export function resolveLocale(value: unknown): Locale {
 }
 
 const en = {
+  access: {
+    denied: {
+      title: "Private access required",
+      reason: "This request could not be authorized.",
+      action: "Open your saved private HTTPS address using a device signed in to the owner’s Tailscale account. If access still fails, ask the app administrator to check private access.",
+    },
+    unavailable: {
+      title: "Private access is not ready",
+      reason: "The app cannot verify private access right now.",
+      action: "Ask the app administrator to check the private access settings, then try your saved private HTTPS address again.",
+    },
+    retry: "Try this address again",
+  },
   sources: "Sources",
   source: "Source",
   myBrain: "My Brain",
@@ -80,6 +93,19 @@ const en = {
 };
 
 const ko: typeof en = {
+  access: {
+    denied: {
+      title: "비공개 접근이 필요해요",
+      reason: "이 요청의 접근 권한을 확인할 수 없어요.",
+      action: "소유자의 Tailscale 계정으로 로그인한 기기에서 저장해 둔 비공개 HTTPS 주소를 열어 주세요. 계속 접근할 수 없다면 앱 관리자에게 비공개 접근 확인을 요청해 주세요.",
+    },
+    unavailable: {
+      title: "비공개 접근이 아직 준비되지 않았어요",
+      reason: "지금은 앱에서 비공개 접근을 확인할 수 없어요.",
+      action: "앱 관리자에게 비공개 접근 설정 확인을 요청한 뒤 저장해 둔 비공개 HTTPS 주소로 다시 접속해 주세요.",
+    },
+    retry: "이 주소로 다시 시도",
+  },
   sources: "소스",
   source: "소스",
   myBrain: "나의 Brain",

@@ -1,11 +1,14 @@
+import { requireOwnerAccess } from "@/security/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { localeCookie, resolveLocale, sourceMessages, type Locale } from "@/i18n/messages";
 
 async function changeLanguage(formData: FormData) {
   "use server";
+  await requireOwnerAccess("POST");
   const locale = resolveLocale(formData.get("locale"));
   (await cookies()).set(localeCookie, locale, {
+    secure: true,
     httpOnly: true,
     sameSite: "lax",
     path: "/",

@@ -89,6 +89,9 @@ test('language switching persists and keeps server-rendered language and metadat
     await page.getByRole('combobox', { name: current.language, exact: true }).selectOption(locale);
     await page.getByRole('button', { name: current.applyLanguage, exact: true }).click();
     await expectDocumentLocale(page, locale);
+    expect((await context.cookies(productionOrigin)).find(cookie => cookie.name === localeCookie)).toMatchObject({
+      value: locale, httpOnly: true, secure: true,
+    });
     await page.reload();
     await expectDocumentLocale(page, locale);
     const html = await (await context.request.get(productionOrigin)).text();
@@ -115,6 +118,9 @@ test('both language choices work without client JavaScript', async ({ browser })
     await page.getByRole('combobox', { name: current.language, exact: true }).selectOption(locale);
     await page.getByRole('button', { name: current.applyLanguage, exact: true }).click();
     await expectDocumentLocale(page, locale);
+    expect((await context.cookies(productionOrigin)).find(cookie => cookie.name === localeCookie)).toMatchObject({
+      value: locale, httpOnly: true, secure: true,
+    });
     await page.reload();
     await expectDocumentLocale(page, locale);
     currentLocale = locale;

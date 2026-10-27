@@ -187,6 +187,7 @@ test('production manual-to-auto submission persists the device zone independentl
   const preference = (await context.cookies()).find(cookie => cookie.name === timeZoneCookie);
   expect(preference?.value).toBe('auto');
   expect(preference?.httpOnly).toBe(true);
+  expect(preference?.secure).toBe(true);
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
   await expect(page).toHaveTitle('소스 · GBrain Observatory');
@@ -315,6 +316,7 @@ test('native manual settings work with JavaScript unavailable and stay independe
   await expect(page.locator('.effective-time-zone')).toContainText('America/Los_Angeles');
   const preference = (await context.cookies()).find(cookie => cookie.name === timeZoneCookie);
   expect(preference?.httpOnly).toBe(true);
+  expect(preference?.secure).toBe(true);
   expect(decodeURIComponent(preference!.value)).toBe('America/Los_Angeles');
   await context.close();
 });

@@ -1,3 +1,4 @@
+import { requireOwnerAccess } from "@/security/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Locale } from "@/i18n/messages";
@@ -6,9 +7,11 @@ import { TimeZoneControl } from "@/ui/time-zone-control";
 
 async function changeTimeZone(data: FormData) {
   "use server";
+  await requireOwnerAccess("POST");
   const value = data.get("timeZone");
   if (value !== "auto" && !isTimeZone(value)) redirect("/?timeZoneError=invalid");
   (await cookies()).set(timeZoneCookie, value, {
+    secure: true,
     httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365,
   });
   redirect("/");

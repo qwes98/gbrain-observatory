@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  testIgnore: '**/operations/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
@@ -24,7 +25,7 @@ export default defineConfig({
       timeout: 60_000,
     },
     {
-      command: 'npm run start -- --hostname 127.0.0.1 --port 4173',
+      command: 'node tests/support/access-server.mjs',
       url: 'http://127.0.0.1:4173',
       reuseExistingServer: false,
       timeout: 60_000,

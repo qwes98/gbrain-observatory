@@ -1,6 +1,6 @@
 # Browser verification
 
-Run `npm run build`, then `npm test`. Playwright starts the production Next server at `127.0.0.1:4173` and an independent Vite fixture host at `127.0.0.1:4174`. Install Chromium with `npx playwright install chromium`, or select an existing browser with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/path/to/chromium`.
+Run `npm run verify` for typecheck, lint, a fixture-environment-injected production build, browser tests, and lifecycle safeguards. For browser-only checks, run `npm run build`, then `npm test`. Playwright starts the production Next backend behind a test-only Serve-emulating proxy and an independent Vite fixture host. The browser proxy uses `127.0.0.1:4173`, Next uses `127.0.0.1:4175`, and Vite uses `127.0.0.1:4174`. An invalid-configuration backend/proxy pair uses ports 4176/4177. Browser origins are centralized in `support/ui.ts`; the fixture host stays separate. Install Chromium with `npx playwright install chromium`, or select an existing browser with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/path/to/chromium`.
 
 The fixture entry is under `tests/fixtures`, outside Next's `src/app` routes. It imports the production UI and contracts directly. Scenario queries and deferred loaders exist only on the Vite host; production composition never reads them. Vite supplies a browser-safe empty `process.env` for Next Link without replacing the production link implementation. No real GBrain process, credentials, or memory mutations are used.
 
@@ -35,4 +35,18 @@ GBRAIN_FIXTURE=success NEXT_PUBLIC_GBRAIN_FIXTURE=success SOURCE_FIXTURE=success
 npm test -- tests/production.spec.ts
 ```
 
-These synthetic checks do not establish live GBrain integration, authentication, permission filtering, or support for a particular upstream response. The 200% check changes the document's root text size; browser UI zoom and assistive technology combinations require separate acceptance. Axe covers automated rules and does not establish full WCAG conformance.
+These synthetic checks do not establish live Tailscale identity, real-device access, live GBrain integration, source permission filtering, or support for a particular upstream response. The 200% check changes the document's root text size; browser UI zoom and assistive technology combinations require separate acceptance. Axe covers automated rules and does not establish full WCAG conformance.
+
+## Private access and operations
+
+`access.spec.ts` exercises the shared access policy and real Next page, RSC, action and API-path rejections, exact configured host/Origin enforcement, proxy spoof stripping, malformed server configuration, and localized denial guidance. The test-only proxy supplies a fixed synthetic owner identity and maps its own browser Origin to the configured HTTPS test origin. It strips incoming identity/forwarding headers before supplying trusted values. There is no production bypass flag. Existing language/time-zone tests continue through the proxy, including independent browser contexts and native forms.
+
+Run the lifecycle checks independently:
+
+```sh
+npm run test:operations
+```
+
+These tests inject an isolated fake CLI with temporary private filesystem state. They verify install/remove command scope, structurally equivalent preservation of existing 443/Funnel and other mappings, foreground/Service collisions, occupied-port refusal, ownership and endpoint mismatch refusal, preflight races, retained failure evidence and lock protection. They never invoke the installed Tailscale CLI or change real services.
+
+The operations tool requires ports to be free before installation, so manual installation precedes launching the app. See the [operations guide](../operations/private-access.md) for guarded lifecycle commands and distinct simulated, local HTTPS and real PC/mobile/other-user acceptance evidence. Implementation tests do not claim those live acceptance checks.
