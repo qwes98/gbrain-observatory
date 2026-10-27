@@ -7,7 +7,8 @@ export const behaviorLocale = defaultLocale;
 export const ui = sourceMessages[behaviorLocale];
 
 export async function openSourceFixture(page: Page, scenario: string, locale: Locale = behaviorLocale) {
-  const query = new URLSearchParams({ scenario, locale });
+  // Existing behavior checks hold the display zone fixed, independent of test machines.
+  const query = new URLSearchParams({ scenario, locale, timeZone: 'Asia/Seoul' });
   await page.goto(`${fixtureOrigin}/?${query}`);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(sourceMessages[locale].sources);
 }

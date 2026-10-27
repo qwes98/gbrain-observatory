@@ -42,3 +42,15 @@ export const timestampSnapshot: SourceSnapshot = {
     { ...sourceSnapshot.sources[0], id: 'range-time', name: '범위 밖 시각 검증', lastSyncedAt: '2026-10-27T24:00:00Z', checkedAt: '2026-10-27T03:00:00+99:00' },
   ],
 };
+
+// Fixed calendar and DST anchors; source values must survive every display-zone change.
+export const timeZoneSnapshot: SourceSnapshot = {
+  checkedAt: '2026-01-01T00:15:00Z',
+  sources: [
+    { ...sourceSnapshot.sources[0], id: 'midnight-anchor', name: '자정 경계 검증', lastSyncedAt: '2026-01-01T00:15:00Z', checkedAt: '2026-01-01T00:15:00Z' },
+    { ...sourceSnapshot.sources[0], id: 'winter-anchor', name: '겨울 시간 검증', lastSyncedAt: '2026-01-15T12:00:00Z', checkedAt: '2026-01-15T12:00:00Z' },
+    { ...sourceSnapshot.sources[0], id: 'summer-anchor', name: '여름 시간 검증', lastSyncedAt: '2026-07-15T12:00:00Z', checkedAt: '2026-07-15T12:00:00Z' },
+    { ...sourceSnapshot.sources[0], id: 'fall-before-anchor', name: '가을 전환 이전 검증', lastSyncedAt: '2026-11-01T08:30:00Z', checkedAt: '2026-11-01T08:30:00Z' },
+    { ...sourceSnapshot.sources[0], id: 'fall-after-anchor', name: '가을 전환 이후 검증', lastSyncedAt: '2026-11-01T09:30:00Z', checkedAt: '2026-11-01T09:30:00Z' },
+  ],
+};

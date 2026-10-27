@@ -128,3 +128,10 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .language-switcher { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .8125rem; min-width: 0; }
 .language-switcher select { max-width: 100%; min-height: 32px; padding: 5px 8px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
 @media (max-width: 760px), (any-pointer: coarse) { .language-switcher select { min-height: 44px; } }
+
+.time-zone-settings { min-width: 0; margin-bottom: 18px; padding: 12px 0; border-block: 1px solid var(--line); font-size: .8125rem; overflow-wrap: anywhere; }
+.time-zone-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.time-zone-form select { min-width: 0; max-width: 100%; width: min(100%, 20em); min-height: 32px; padding: 5px 8px; border: 1px solid var(--control-border); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+.effective-time-zone { margin: 8px 0 0; color: var(--secondary); }
+.time-zone-error { margin: 8px 0 0; color: #85520a; }
+@media (max-width: 760px), (any-pointer: coarse) { .time-zone-form select { min-height: 44px; } }

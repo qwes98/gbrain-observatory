@@ -18,6 +18,12 @@ Catalog-derived locators verify that the correct message is wired to each state 
 
 Source names, paths and supplied status descriptions are data, not UI translations. Shared input in `fixtures/source-data.ts` deliberately contains Korean to verify Unicode and original-content preservation in both UI languages. Korean text belongs in this data and in independent Korean localization expectations, not in the common behavior suite.
 
+## Time zone coverage
+
+Existing source behavior fixtures explicitly select Asia/Seoul, so local browser settings cannot change their fixed expectations. `time-zone.spec.ts` adds independent UTC, Seoul and Los Angeles midnight/winter/summer/fall-back anchors, per-instant offsets and original `datetime` preservation. It covers strict calendar validation, missing/offset-free/date-only values, named aliases, manual/automatic precedence, saved-cookie validation, server-first UTC hydration, device-change events and visible-page intervals, native no-JavaScript persistence, invalid native submissions in both languages, and independence from language. Refresh checks retain original observations, result counts, request concurrency and focus while the shared zone changes.
+
+The production bilingual 320px/200% captures include the time-zone selector, effective-zone status and native controls. Automatic detection is browser-local and saves only the separate detected-zone cookie; the explicit preference remains HttpOnly. Tests use synthetic device changes only on the isolated fixture host and do not add production fixture controls.
+
 This coverage split is a project decision based on [Playwright's user-visible testing guidance](https://playwright.dev/docs/best-practices#test-user-visible-behavior), [semantic locator guidance](https://playwright.dev/docs/locators#locating-elements), [test-level parameterization](https://playwright.dev/docs/test-parameterize#parameterized-tests), and [browser locale emulation](https://playwright.dev/docs/emulation#locale--timezone). Add broader per-locale journeys when a language introduces distinct navigation, validation, bidirectional layout, or other behavior; do not mechanically multiply the entire suite.
 
 Production tests also attempt fixture paths, queries, and runtime environment values, inspect emitted application/client files for synthetic data, and require observed requests to stay on the local origin. Captures are written to `test-results/`.

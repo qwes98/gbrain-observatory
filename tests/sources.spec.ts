@@ -20,7 +20,7 @@ async function assertNoPageOverflow(page: Page) {
 
 test('first query announces loading without inventing a result count', async ({ page }) => {
   await fixture(page, 'loading');
-  await expect(page.getByRole('status').getByText(t.loading, { exact: true })).toBeVisible();
+  await expect(page.locator('.state-announcement').getByText(t.loading, { exact: true })).toBeVisible();
   await expect(page.locator('.table-footer')).toHaveText(t.listPending);
   await expect(page.getByText(sourceName)).toHaveCount(0);
 });
@@ -99,7 +99,7 @@ for (const outcome of ['success', 'failure', 'unknown', 'reject']) {
       button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    await expect(page.getByRole('status').getByText(t.loading, { exact: true })).toBeVisible();
+    await expect(page.locator('.state-announcement').getByText(t.loading, { exact: true })).toBeVisible();
     await expect(page.getByRole('table').getByText(sourceName)).toBeVisible();
     await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
     await expect(page.locator('.table-footer').locator(`time[datetime="${oldCheckedAt}"]`)).toBeVisible();
@@ -107,8 +107,8 @@ for (const outcome of ['success', 'failure', 'unknown', 'reject']) {
     await release(page);
     if (outcome === 'success') {
       await expect(page.locator('.table-footer').locator('time[datetime="2026-10-27T04:00:00.000Z"]')).toBeVisible();
-      await expect(page.getByRole('status')).toContainText(formatResultCount(behaviorLocale, 3));
-      await expect(page.getByRole('status').locator('time')).toHaveAttribute('datetime', '2026-10-27T04:00:00.000Z');
+      await expect(page.locator('.state-announcement')).toContainText(formatResultCount(behaviorLocale, 3));
+      await expect(page.locator('.state-announcement').locator('time')).toHaveAttribute('datetime', '2026-10-27T04:00:00.000Z');
       await expect(page.getByText(t.previous, { exact: false })).toHaveCount(0);
     } else {
       await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
@@ -227,9 +227,9 @@ for (const timezoneId of ['UTC', 'Asia/Seoul']) {
     await expect(missing.getByRole('cell').nth(3)).toHaveText(t.notProvided);
     const explicit = table.getByRole('row').filter({ has: page.getByRole('rowheader', { name: timestampSnapshot.sources.find(source => source.id === 'offset-time')!.name, exact: true }) });
     await expect(explicit.getByRole('cell').nth(2).locator('time')).toHaveAttribute('datetime', '2026-10-27T12:00:00+09:00');
-    await expect(explicit.getByRole('cell').nth(2)).toHaveText('27/10/2026, 12:00');
+    await expect(explicit.getByRole('cell').nth(2)).toHaveText('27/10/2026, 12:00 · UTC+09:00');
     await expect(explicit.getByRole('cell').nth(3).locator('time')).toHaveAttribute('datetime', '2026-10-27T04:15:00.123Z');
-    await expect(explicit.getByRole('cell').nth(3)).toHaveText('27/10/2026, 13:15');
+    await expect(explicit.getByRole('cell').nth(3)).toHaveText('27/10/2026, 13:15 · UTC+09:00');
     await context.close();
   });
 }

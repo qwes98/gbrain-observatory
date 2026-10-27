@@ -15,6 +15,8 @@ async function expectDocumentLocale(page: Page, locale: Locale) {
   await expect(page.getByRole('combobox', { name: expected.language, exact: true })).toHaveValue(locale);
   await expect(page.getByRole('button', { name: expected.applyLanguage, exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: expected.guide, exact: true })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: expected.timeZoneLabel, exact: true }).getByRole('option', { name: expected.autoTimeZone, exact: true })).toHaveAttribute('value', 'auto');
+  await expect(page.locator('.effective-time-zone')).toContainText(`${expected.effectiveTimeZone}:`);
 }
 
 function flattenMessages(value: object, prefix = ''): Record<string, string> {
@@ -42,6 +44,11 @@ test('translation catalogs have matching keys, nonempty values and independent a
     expect(sourceMessages[locale].language).toBe(expected.language);
     expect(sourceMessages[locale].applyLanguage).toBe(expected.applyLanguage);
     expect(sourceMessages[locale].notProvided).toBe(expected.notProvided);
+    expect(sourceMessages[locale].timeZone).toBe(expected.timeZoneLabel);
+    expect(sourceMessages[locale].applyTimeZone).toBe(expected.applyTimeZone);
+    expect(sourceMessages[locale].autoTimeZone).toBe(expected.autoTimeZone);
+    expect(sourceMessages[locale].effectiveTimeZone).toBe(expected.effectiveTimeZone);
+    expect(sourceMessages[locale].invalidTimeZone).toBe(expected.invalidTimeZone);
     expect(formatResultCount(locale, 1000)).toBe(expected.largeCount);
     for (const [index, count] of [0, 1, 3].entries()) {
       expect(formatResultCount(locale, count)).toBe(expected.counts[index]);
@@ -180,7 +187,15 @@ for (const locale of locales) {
     await select.focus();
     await page.keyboard.press('Tab');
     await expect(page.getByRole('button', { name: t.applyLanguage, exact: true })).toBeFocused();
+    const zoneSelect = page.getByRole('combobox', { name: t.timeZone, exact: true });
+    expect((await zoneSelect.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await zoneSelect.focus();
+    await page.keyboard.press('Tab');
+    const zoneApply = page.getByRole('button', { name: t.applyTimeZone, exact: true });
+    await expect(zoneApply).toBeFocused();
+    expect((await zoneApply.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze()).violations).toEqual([]);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: `test-results/production-${locale}-320-text200.png`, fullPage: true });
   });
 }

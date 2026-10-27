@@ -1,9 +1,14 @@
 import { getInitialSourceList } from "@/composition/source-list";
-import { getLocale } from "@/i18n/server";
+import { getLocale, getTimeZoneSettings } from "@/i18n/server";
 import { SourceScreen } from "@/ui/source-screen";
 import { LanguageSwitcher } from "./language-switcher";
+import { TimeZoneSettings } from "./time-zone-settings";
+import { TimeZoneProvider } from "@/ui/time-zone-provider";
 
-export default async function Home() {
-  const locale = await getLocale();
-  return <SourceScreen locale={locale} languageControl={<LanguageSwitcher locale={locale} />} initialState={getInitialSourceList()} />;
+export default async function Home({ searchParams }: { searchParams: Promise<{ timeZoneError?: string }> }) {
+  const [locale, settings, parameters] = await Promise.all([getLocale(), getTimeZoneSettings(), searchParams]);
+  return <TimeZoneProvider settings={settings}><SourceScreen locale={locale}
+    languageControl={<LanguageSwitcher locale={locale} />}
+    timeZoneControl={<TimeZoneSettings locale={locale} settings={settings} invalid={parameters.timeZoneError === "invalid"} />}
+    initialState={getInitialSourceList()} /></TimeZoneProvider>;
 }

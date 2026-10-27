@@ -4,11 +4,14 @@ import { useRef, useState, type ReactNode } from "react";
 import { defaultLocale, formatResultCount, sourceMessages, type Locale } from "../i18n/messages";
 import Link from "next/link";
 import type { SourceListResult, SourceListState, SourceSnapshot } from "../contracts/sources";
+import { formatInstant } from "../i18n/time-zone";
+import { useTimeZone } from "./time-zone-provider";
 
 interface SourceScreenProps {
   initialState: SourceListState;
   locale?: Locale;
   languageControl?: ReactNode;
+  timeZoneControl?: ReactNode;
   loadSources?: () => Promise<SourceListResult>;
 }
 
@@ -19,24 +22,11 @@ function checkedSnapshot(state: SourceListState): SourceSnapshot | undefined {
 
 function Timestamp({ value, locale }: { value: string | null; locale: Locale }) {
   const t = sourceMessages[locale];
+  const zone = useTimeZone();
   if (value === null) return <span className="muted">{t.notProvided}</span>;
-  // Reject local/offset-free values and calendar rollovers before interpreting an instant.
-  const parts = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|[+-](\d{2}):(\d{2}))$/.exec(value);
-  const year = Number(parts?.[1]);
-  const month = Number(parts?.[2]);
-  const day = Number(parts?.[3]);
-  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
-  if (!parts || day < 1 || day > daysInMonth || !daysInMonth || Number(parts[4]) > 23 ||
-      Number(parts[5]) > 59 || Number(parts[6]) > 59 || Number(parts[7] ?? 0) > 23 ||
-      Number(parts[8] ?? 0) > 59 || Number.isNaN(Date.parse(value))) {
-    return <span className="muted">{t.invalidTime}</span>;
-  }
-  const text = new Intl.DateTimeFormat(locale === "ko" ? "ko-KR" : "en-GB", {
-    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).format(new Date(value));
-  return <time dateTime={value}>{text}</time>;
+  const formatted = formatInstant(value, locale, zone);
+  if (!formatted) return <span className="muted">{t.invalidTime}</span>;
+  return <time dateTime={value} title={`${formatted.text} · ${zone} · ${formatted.offset}`}>{formatted.text} · {formatted.offset}</time>;
 }
 
 function Navigation({ locale }: { locale: Locale }) {
@@ -55,8 +45,9 @@ function Navigation({ locale }: { locale: Locale }) {
   </nav>;
 }
 
-export function SourceScreen({ initialState, loadSources, locale = defaultLocale, languageControl }: SourceScreenProps) {
+export function SourceScreen({ initialState, loadSources, locale = defaultLocale, languageControl, timeZoneControl }: SourceScreenProps) {
   const t = sourceMessages[locale];
+  const zone = useTimeZone();
   const [state, setState] = useState(initialState);
   const inFlight = useRef(false);
   const guide = useRef<HTMLDialogElement>(null);
@@ -107,11 +98,12 @@ export function SourceScreen({ initialState, loadSources, locale = defaultLocale
               <button type="button" ref={guideTrigger} onClick={() => guide.current?.showModal()}>{t.guide}</button>
             </div>
           </div>
+          {timeZoneControl}
           <div className="state-announcement" role="status" aria-live="polite" aria-atomic="true">
             {state.kind === "loading" && <p>{t.loading}</p>}
-            {state.kind === "success" && <p className="sr-only">{t.finished} {formatResultCount(locale, state.snapshot.sources.length)} · {t.checkedAt}: <Timestamp locale={locale} value={state.snapshot.checkedAt} /> · {t.koreaTime}</p>}
+            {state.kind === "success" && <p className="sr-only">{t.finished} {formatResultCount(locale, state.snapshot.sources.length)} · {t.checkedAt}: <Timestamp locale={locale} value={state.snapshot.checkedAt} /> · {zone}</p>}
             {issue && <div className="issue-board"><span className="issue-icon" aria-hidden="true">!</span><div><h2>{issue.title}</h2><p>{issue.reason}</p><p>{issue.action}</p></div></div>}
-            {previous && <p className="previous-notice">{t.previous} · {t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {t.koreaTime}</p>}
+            {previous && <p className="previous-notice">{t.previous} · {t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</p>}
             {state.kind === "success" && snapshot?.sources.length === 0 && <div className="empty-board"><h2>{t.emptyTitle}</h2><p>{t.emptyDescription}</p></div>}
           </div>
           <div className="table-board" aria-busy={state.kind === "loading"}>
@@ -127,7 +119,7 @@ export function SourceScreen({ initialState, loadSources, locale = defaultLocale
                 </tr>)}</tbody>
               </table>
             </div>
-            <div className="table-footer">{snapshot && <span>{formatResultCount(locale, snapshot.sources.length)}</span>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {t.koreaTime}</span>}</div>
+            <div className="table-footer">{snapshot && <span>{formatResultCount(locale, snapshot.sources.length)}</span>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
           </div>
           <p className="scope-note">{t.scopeNote}</p>
         </div>

@@ -26,6 +26,14 @@ English is the default UI language. English and Korean are both supported, inclu
 
 Interface strings live in typed dictionaries in `src/i18n/messages.ts`. Add both translations whenever changing the UI. Project documentation, code comments, and commit messages use English by default; see [AGENTS.md](AGENTS.md).
 
+## Time zones
+
+Time zone settings are independent of interface language. Choose **Time zone → Automatic (device)** or a supported named zone, then **Apply time zone**. Manual choices persist in an HttpOnly cookie and also work without JavaScript. Automatic mode uses the last validated device detection for server rendering, or UTC when there is none. The first hydrated tree matches that server value; device detection then updates the display. Without JavaScript or available detection, the effective-zone label accurately shows the saved detection or UTC fallback.
+
+Detection uses the browser's own time zone, with no location permissions or external lookup. It checks on mount, focus, visibility, pageshow, and every 60 seconds while visible. Its separate cookie never replaces a manual preference. Invalid settings are rejected with localized feedback and preserve the valid saved preference. Supported IANA aliases remain available when saved.
+
+All source and observation times share the effective zone. Each timestamp's title includes its offset at that instant, including daylight saving transitions; the original `datetime` value stays unchanged. Missing, invalid, offset-free and date-only source values never become invented instants. Date-only data remains a calendar value.
+
 ## Versions and initialization
 
 Next.js **16.4.3**, React / React DOM **19.3.1**, Tailwind CSS / its PostCSS plugin **4.3.3**, and TypeScript **5.9.3** are pinned exactly. Use the committed `package-lock.json` with `npm ci` for reproducible installation. Direct dependencies and development tools are also pinned without version ranges.
@@ -43,7 +51,7 @@ React was pinned to the required version. Tailwind uses the shared PostCSS confi
 ## Structure
 
 - `src/app`: source route, localized metadata, global styles, and language preference form.
-- `src/i18n`: shared English/Korean messages and server-side locale resolution.
+- `src/i18n`: shared English/Korean messages, strict instant formatting, named-zone validation and server preference resolution.
 - `src/contracts`: source display data and query states; synchronization and observation times stay distinct.
 - `src/composition`: server-only unconfigured initial state; no live GBrain calls or fixture selection.
 - `src/ui`: source list, state messages, and connection guidance. Refresh is available only when a loader exists.
