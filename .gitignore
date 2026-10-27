@@ -16,3 +16,11 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Application dependencies and generated output
+node_modules/
+.next/
+out/
+test-results/
+playwright-report/
+*.tsbuildinfo
