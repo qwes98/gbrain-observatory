@@ -2,18 +2,13 @@ import { requireOwnerAccess } from "@/security/server";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { localeCookie, resolveLocale, sourceMessages, type Locale } from "@/i18n/messages";
+import { preferenceCookieOptions } from "@/i18n/server";
 
 async function changeLanguage(formData: FormData) {
   "use server";
   await requireOwnerAccess("POST");
   const locale = resolveLocale(formData.get("locale"));
-  (await cookies()).set(localeCookie, locale, {
-    secure: true,
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-  });
+  (await cookies()).set(localeCookie, locale, preferenceCookieOptions);
   redirect("/");
 }
 

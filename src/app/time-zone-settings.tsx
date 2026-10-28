@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { Locale } from "@/i18n/messages";
 import { availableTimeZones, isTimeZone, timeZoneCookie, type TimeZoneSettings as Settings } from "@/i18n/time-zone";
+import { preferenceCookieOptions } from "@/i18n/server";
 import { TimeZoneControl } from "@/ui/time-zone-control";
 
 async function changeTimeZone(data: FormData) {
@@ -10,10 +11,7 @@ async function changeTimeZone(data: FormData) {
   await requireOwnerAccess("POST");
   const value = data.get("timeZone");
   if (value !== "auto" && !isTimeZone(value)) redirect("/?timeZoneError=invalid");
-  (await cookies()).set(timeZoneCookie, value, {
-    secure: true,
-    httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365,
-  });
+  (await cookies()).set(timeZoneCookie, value, preferenceCookieOptions);
   redirect("/");
 }
 
