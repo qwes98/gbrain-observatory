@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "playwright test",
-    "test:operations": "node --test tests/operations/serve-lifecycle.test.mjs",
+    "test:operations": "node --test tests/operations/*.test.mjs",
     "verify": "npm run typecheck && npm run lint && GBRAIN_FIXTURE=success NEXT_PUBLIC_GBRAIN_FIXTURE=success SOURCE_FIXTURE=success npm run build && npm test && npm run test:operations"
   },
   "dependencies": {

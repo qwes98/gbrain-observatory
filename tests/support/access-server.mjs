@@ -1,6 +1,17 @@
 // Test-only Serve emulator. This file is never imported by application code.
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import { mkdtempSync, writeFileSync, copyFileSync, chmodSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const connectionDirectory = mkdtempSync(join(tmpdir(), 'observatory-browser-connection-'));
+const connectionExecutable = join(connectionDirectory, 'gbrain');
+copyFileSync('tests/support/fake-gbrain.mjs', connectionExecutable);
+chmodSync(connectionExecutable, 0o700);
+writeFileSync(join(connectionDirectory, 'scenario'), 'success');
+writeFileSync(join(connectionDirectory, 'calls'), '');
+writeFileSync('.next/connection-test-path', connectionDirectory);
+process.on('exit', () => rmSync(connectionDirectory, { recursive: true, force: true }));
 
 const owner = 'owner@example.test';
 const externalOrigin = 'https://observatory.example.test:8443';
@@ -20,7 +31,7 @@ process.on('SIGINT', stop);
 
 function startNext(port, config) {
   const child = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '--hostname', '127.0.0.1', '--port', String(port)], {
-    env: { ...process.env, ...config }, stdio: ['ignore', 'inherit', 'inherit'],
+    env: { ...process.env, OBSERVATORY_GBRAIN_EXECUTABLE: '', OBSERVATORY_GBRAIN_CWD: '', OBSERVATORY_GBRAIN_READ_AUDIT: '', ...config }, stdio: ['ignore', 'inherit', 'inherit'],
   });
   children.push(child);
   child.on('exit', code => { if (!shuttingDown) { stop(); process.exitCode = code || 1; } });
@@ -62,5 +73,7 @@ function proxy(port, backendPort) {
 
 startNext(4175, { OBSERVATORY_OWNER_LOGIN: owner, OBSERVATORY_EXTERNAL_ORIGIN: externalOrigin });
 startNext(4176, { OBSERVATORY_OWNER_LOGIN: '', OBSERVATORY_EXTERNAL_ORIGIN: 'http://invalid.example.test' });
-await Promise.all([ready(4175), ready(4176)]);
-await Promise.all([proxy(4173, 4175), proxy(4177, 4176)]);
+startNext(4178, { OBSERVATORY_OWNER_LOGIN: owner, OBSERVATORY_EXTERNAL_ORIGIN: externalOrigin,
+  OBSERVATORY_GBRAIN_EXECUTABLE: connectionExecutable, OBSERVATORY_GBRAIN_CWD: connectionDirectory, OBSERVATORY_GBRAIN_READ_AUDIT: 'local-read-reviewed' });
+await Promise.all([ready(4175), ready(4176), ready(4178)]);
+await Promise.all([proxy(4173, 4175), proxy(4177, 4176), proxy(4179, 4178)]);

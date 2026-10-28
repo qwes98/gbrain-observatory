@@ -135,3 +135,11 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .effective-time-zone { margin: 8px 0 0; color: var(--secondary); }
 .time-zone-error { margin: 8px 0 0; color: #85520a; }
 @media (max-width: 760px), (any-pointer: coarse) { .time-zone-form select { min-height: 44px; } }
+
+.connection-panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 18px; overflow-wrap: anywhere; }
+.connection-panel form { margin-top: 12px; }
+.connection-panel p, .connection-panel dl { font-size: .875rem; color: var(--secondary); margin: 12px 0 0; }
+.connection-panel .connection-result { color: var(--ink); font-weight: 600; }
+.connection-panel dl > div { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
+.connection-panel dt { font-weight: 600; }
+.connection-panel dd { margin: 0; }

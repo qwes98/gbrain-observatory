@@ -1,7 +1,8 @@
 import "server-only";
+import { getConnectionConfig } from "@/adapters/gbrain";
 import type { SourceListResult } from "@/contracts/sources";
 
-/** Story 1.1 has no configured adapter or live request path. */
+/** Connection probes do not populate the source list; Story 1.4 owns that integration. */
 export function getInitialSourceList(): SourceListResult {
-  return { kind: "unconfigured", reason: "adapter-not-configured" };
+  return getConnectionConfig() ? { kind: "pending", reason: "integration-pending" } : { kind: "unconfigured", reason: "adapter-not-configured" };
 }

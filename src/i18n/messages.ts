@@ -7,6 +7,29 @@ export function resolveLocale(value: unknown): Locale {
 }
 
 const en = {
+  connectionCheck: {
+    title: "GBrain connection",
+    ready: "Ready for a manual connection check.",
+    check: "Check GBrain connection",
+    pending: "Checking GBrain connection…",
+    success: "GBrain connection verified",
+    previous: "Previous observation; a new check is in progress.",
+    version: "Verified version",
+    observedAt: "Observed at",
+    scope: "This connection checks currently available sources. Archived sources are excluded.",
+    limitation: "This checks whether sources can be read. The source list is not available on this screen yet.",
+    count: "Sources observed",
+    causes: {
+      settings: { reason: "The server connection is not ready.", action: "Ask your GBrain administrator to prepare and check the server connection." },
+      "not-found": { reason: "The configured executable or working directory could not be found.", action: "Ask the administrator to check the server installation and connection settings." },
+      permission: { reason: "The server could not execute the configured GBrain command.", action: "Ask the administrator to check executable and directory access for the app’s OS account." },
+      timeout: { reason: "A GBrain command exceeded the 15-second limit.", action: "The command was stopped. Check the local service before manually trying again." },
+      "output-limit": { reason: "A GBrain command exceeded the allowed output size.", action: "The command was stopped. Ask the administrator to revalidate the public CLI response before trying again." },
+      failed: { reason: "The connection check failed. The cause has not been confirmed.", action: "Try again manually. If it continues, ask the administrator to inspect GBrain locally without sharing private output." },
+      busy: { reason: "Another GBrain connection check is still running.", action: "Wait for that check to finish, then try again manually." },
+      compatibility: { reason: "The GBrain version, capability, or response could not be validated.", action: "Ask the administrator to revalidate compatibility with GBrain 0.60.323.0. No automatic upgrade or retry will run." },
+    },
+  },
   access: {
     denied: {
       title: "Private access required",
@@ -61,6 +84,7 @@ const en = {
   notProvided: "Not provided",
   invalidTime: "Time could not be verified",
   listPending: "The list will appear after sources have been checked.",
+  listIntegrationPending: "The source list is not available yet. You can check the GBrain connection above.",
   scopeNote: "Synchronization results reflect the last check. Last synchronized is when the source was synchronized; checked at is when this information was read.",
   guide: "Connection help",
   close: "Close",
@@ -93,6 +117,29 @@ const en = {
 };
 
 const ko: typeof en = {
+  connectionCheck: {
+    title: "GBrain 연결",
+    ready: "수동 연결 확인을 시작할 수 있어요.",
+    check: "GBrain 연결 확인",
+    pending: "GBrain 연결을 확인하고 있어요…",
+    success: "GBrain 연결을 확인했어요",
+    previous: "이전 확인 내용이에요. 새로 연결을 확인하고 있어요.",
+    version: "확인한 버전",
+    observedAt: "관찰 시각",
+    scope: "이 연결에서 현재 볼 수 있는 소스를 확인해요. 보관된 소스는 제외해요.",
+    limitation: "소스를 읽을 수 있는지 확인해요. 이 화면에서는 소스 목록을 아직 볼 수 없어요.",
+    count: "관찰한 소스 수",
+    causes: {
+      settings: { reason: "서버 연결이 아직 준비되지 않았어요.", action: "GBrain을 관리하는 사람에게 서버 연결 준비와 확인을 요청해 주세요." },
+      "not-found": { reason: "설정된 실행 파일 또는 작업 폴더를 찾을 수 없어요.", action: "관리자에게 서버 설치 상태와 연결 설정 확인을 요청해 주세요." },
+      permission: { reason: "서버에서 설정된 GBrain 명령을 실행할 수 없어요.", action: "관리자에게 앱을 실행하는 OS 계정의 실행 파일·폴더 접근 권한 확인을 요청해 주세요." },
+      timeout: { reason: "GBrain 명령이 15초 제한을 초과했어요.", action: "명령을 중단했어요. 로컬 서비스 상태를 확인한 뒤 수동으로 다시 시도해 주세요." },
+      "output-limit": { reason: "GBrain 명령이 허용된 출력 크기를 초과했어요.", action: "명령을 중단했어요. 관리자에게 공개 CLI 응답의 호환성을 다시 확인해 달라고 요청해 주세요." },
+      failed: { reason: "연결 확인에 실패했어요. 원인은 아직 확인되지 않았어요.", action: "수동으로 다시 시도해 주세요. 계속 실패하면 비공개 출력을 공유하지 말고 관리자에게 로컬 GBrain 점검을 요청해 주세요." },
+      busy: { reason: "다른 GBrain 연결 확인이 아직 진행 중이에요.", action: "진행 중인 확인이 끝난 뒤 수동으로 다시 시도해 주세요." },
+      compatibility: { reason: "GBrain 버전·기능 또는 응답을 검증할 수 없어요.", action: "관리자에게 GBrain 0.60.323.0 호환성 재검증을 요청해 주세요. 자동 업그레이드나 재시도는 실행하지 않아요." },
+    },
+  },
   access: {
     denied: {
       title: "비공개 접근이 필요해요",
@@ -147,6 +194,7 @@ const ko: typeof en = {
   notProvided: "제공되지 않음",
   invalidTime: "시각을 확인할 수 없어요",
   listPending: "소스를 확인한 뒤 목록이 표시돼요.",
+  listIntegrationPending: "소스 목록은 아직 볼 수 없어요. 위에서 GBrain 연결을 확인할 수 있어요.",
   scopeNote: "소스 동기화 결과는 마지막으로 확인한 결과예요. 마지막 동기화는 소스가 동기화된 시각, 확인 시각은 이 정보를 조회한 시각이에요.",
   guide: "연결 안내",
   close: "닫기",

@@ -15,6 +15,7 @@ export interface SourceSnapshot {
 
 export type SourceListResult =
   | { kind: "success"; snapshot: SourceSnapshot }
+  | { kind: "pending"; reason: "integration-pending" }
   | { kind: "unconfigured"; reason: "adapter-not-configured" }
   | { kind: "failure"; reason: "request-failed" }
   | { kind: "unknown"; reason: "unconfirmed" };

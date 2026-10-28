@@ -13,6 +13,7 @@ interface SourceScreenProps {
   locale?: Locale;
   languageControl?: ReactNode;
   timeZoneControl?: ReactNode;
+  connectionControl?: ReactNode;
   loadSources?: () => Promise<SourceListResult>;
 }
 
@@ -41,7 +42,7 @@ function Navigation({ locale }: { locale: Locale }) {
   </nav>;
 }
 
-export function SourceScreen({ initialState, loadSources, locale = defaultLocale, languageControl, timeZoneControl }: SourceScreenProps) {
+export function SourceScreen({ initialState, loadSources, locale = defaultLocale, languageControl, timeZoneControl, connectionControl }: SourceScreenProps) {
   const t = sourceMessages[locale];
   const zone = useTimeZone();
   const { state, snapshot, refresh } = useSourceList(initialState, loadSources);
@@ -74,6 +75,7 @@ export function SourceScreen({ initialState, loadSources, locale = defaultLocale
             </div>
           </div>
           {timeZoneControl}
+          {connectionControl}
           <div className="state-announcement" role="status" aria-live="polite" aria-atomic="true">
             {state.kind === "loading" && <p>{t.loading}</p>}
             {state.kind === "success" && <p className="sr-only">{t.finished} {formatResultCount(locale, state.snapshot.sources.length)} · {t.checkedAt}: <Timestamp locale={locale} value={state.snapshot.checkedAt} /> · {zone}</p>}
@@ -94,7 +96,7 @@ export function SourceScreen({ initialState, loadSources, locale = defaultLocale
                 </tr>)}</tbody>
               </table>
             </div>
-            <div className="table-footer">{snapshot && <span>{formatResultCount(locale, snapshot.sources.length)}</span>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
+            <div className="table-footer">{snapshot && <span>{formatResultCount(locale, snapshot.sources.length)}</span>}{!snapshot && <span>{state.kind === "pending" ? t.listIntegrationPending : t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
           </div>
           <p className="scope-note">{t.scopeNote}</p>
         </div>

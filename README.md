@@ -1,6 +1,6 @@
 # GBrain Observatory
 
-A local interface for reading GBrain source connections and synchronization results. The default route (`/`) opens the source list. The screen currently shows connection setup guidance behind private owner access. Live GBrain queries and synchronization commands belong to later stories.
+A local interface for reading GBrain source connections and synchronization results. The default route (`/`) opens the source list. The source screen offers an authenticated manual GBrain connection check when the server explicitly enables an audited local connection. Defaults remain unconfigured. Connection success reports version, scope and observation time; source-list integration belongs to Story 1.4. See the [connection operations guide](operations/gbrain-connection.md) for settings, bounded execution and the unresolved live startup side-effect boundary.
 
 ## Run locally
 
