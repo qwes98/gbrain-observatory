@@ -23,6 +23,12 @@ test('first query announces loading without inventing a result count', async ({ 
   await expect(page.locator('.state-announcement').getByText(t.loading, { exact: true })).toBeVisible();
   await expect(page.locator('.table-footer')).toHaveText(t.listPending);
   await expect(page.getByText(sourceName)).toHaveCount(0);
+  const retry = page.getByRole('button', { name: t.refreshing, exact: true });
+  await expect(retry).toBeDisabled();
+  // aria-disabled keeps the control focusable; the loading guard must reject activation.
+  await retry.evaluate(button => button.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+  expect(await page.evaluate(() => (window as unknown as { __sourceFixture: { calls: number } }).__sourceFixture.calls)).toBe(0);
+  await expect(page.locator('.table-footer')).toHaveText(t.listPending);
 });
 
 test('success renders exactly supplied rows with five semantic headers and independent times', async ({ page }) => {
@@ -89,6 +95,38 @@ test('failure and unconfirmed cause have different honest guidance and hide raw 
   await expect(page.getByRole('main')).not.toContainText(/RAW_FIXTURE_ERROR|private-token/);
 });
 
+for (const initial of ['failure', 'unknown'] as const) {
+  test(`refresh from ${initial} without an observation stays pending until success`, async ({ page }) => {
+    await fixture(page, initial);
+    await page.getByRole('button', { name: t.refresh, exact: true }).click();
+    await expect(page.locator('.state-announcement').getByText(t.loading, { exact: true })).toBeVisible();
+    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(0);
+    await expect(page.locator('.table-footer')).toHaveText(t.listPending);
+    await expect(page.getByText(t.previous, { exact: false })).toHaveCount(0);
+    expect(await page.evaluate(() => (window as unknown as { __sourceFixture: { calls: number } }).__sourceFixture.calls)).toBe(1);
+    await release(page);
+    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(3);
+    await expect(page.locator('.table-footer').locator('time')).toHaveAttribute('datetime', '2026-10-27T04:00:00.000Z');
+    await expect(page.locator('.state-announcement')).toContainText(formatResultCount(behaviorLocale, 3));
+    await expect(page.getByRole('heading', { name: t.issues[initial].title, exact: true })).toHaveCount(0);
+    await expect(page.getByText(t.previous, { exact: false })).toHaveCount(0);
+  });
+}
+
+test('refresh returning unconfigured drops the previous observation and retry control', async ({ page }) => {
+  await fixture(page, 'retry-unconfigured');
+  await page.getByRole('button', { name: t.refresh, exact: true }).click();
+  await expect(page.getByRole('table').getByText(sourceName)).toBeVisible();
+  await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
+  await release(page);
+  await expect(page.getByRole('heading', { name: t.issues.unconfigured.title, exact: true })).toBeVisible();
+  await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(0);
+  await expect(page.locator('.table-footer')).toHaveText(t.listPending);
+  await expect(page.getByText(t.previous, { exact: false })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: t.refresh, exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: t.refreshing, exact: true })).toHaveCount(0);
+});
+
 for (const outcome of ['success', 'failure', 'unknown', 'reject']) {
   test(`refresh ${outcome} prevents duplicate requests and preserves existing observation`, async ({ page }) => {
     await fixture(page, `retry-${outcome}`);
@@ -111,9 +149,21 @@ for (const outcome of ['success', 'failure', 'unknown', 'reject']) {
       await expect(page.locator('.state-announcement').locator('time')).toHaveAttribute('datetime', '2026-10-27T04:00:00.000Z');
       await expect(page.getByText(t.previous, { exact: false })).toHaveCount(0);
     } else {
+      const issue = outcome === 'unknown' ? t.issues.unknown : t.issues.failure;
+      await expect(page.getByRole('heading', { name: issue.title, exact: true })).toBeVisible();
       await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
       await expect(page.locator('.table-footer').locator(`time[datetime="${oldCheckedAt}"]`)).toBeVisible();
       await expect(page.getByRole('table').getByText(sourceName)).toBeVisible();
+      await expect(retry).toBeEnabled();
+      await retry.click();
+      await expect(page.locator('.state-announcement').getByText(t.loading, { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => (window as unknown as { __sourceFixture: { calls: number } }).__sourceFixture.calls)).toBe(2);
+      await expect(page.getByRole('table').getByText(sourceName)).toBeVisible();
+      await expect(page.locator('.table-footer').locator(`time[datetime="${oldCheckedAt}"]`)).toBeVisible();
+      await release(page);
+      await expect(page.getByRole('heading', { name: issue.title, exact: true })).toBeVisible();
+      await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
+      await expect(page.locator('.table-footer').locator(`time[datetime="${oldCheckedAt}"]`)).toBeVisible();
       await expect(retry).toBeEnabled();
     }
     await expect(page.getByRole('main')).not.toContainText(/RAW_FIXTURE_ERROR|private-token-must-never-render/);

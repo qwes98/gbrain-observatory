@@ -43,6 +43,8 @@ function loadSources(): Promise<SourceListResult> {
         resolve({ kind: 'failure', reason: 'request-failed' });
       } else if (scenario === 'retry-unknown') {
         resolve({ kind: 'unknown', reason: 'unconfirmed' });
+      } else if (scenario === 'retry-unconfigured') {
+        resolve({ kind: 'unconfigured', reason: 'adapter-not-configured' });
       } else {
         resolve({ kind: 'success', snapshot: { ...snapshot, checkedAt: '2026-10-27T04:00:00.000Z' } });
       }
