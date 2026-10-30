@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useSyncExternalStore, type MouseEvent } from "react";
 import { sourceNavigationParameters, sourceReference, type Source } from "../contracts/sources";
+import type { PageFilter } from "../contracts/pages";
 
 const event = "observatory-source-navigation";
 function subscribe(listener: () => void) {
@@ -18,11 +19,13 @@ export function useSourceNavigation(initialQuery: string) {
   const parameters = new URLSearchParams(query);
   const selections = parameters.getAll("source");
   const selected = selections.length === 0 ? null : selections.length === 1 ? selections[0] : "";
+  const filters = parameters.getAll("added");
+  const filter: PageFilter = filters.length === 1 && (filters[0] === "today" || filters[0] === "yesterday") ? filters[0] : "all";
   const expanded = sourceNavigationParameters(selected, parameters.getAll("expanded")).getAll("expanded");
   function href(value: string | null) {
     const next = new URLSearchParams(query);
-    next.delete("source"); next.delete("expanded");
-    for (const [key, item] of sourceNavigationParameters(value, expanded)) next.append(key, item);
+    next.delete("source"); next.delete("expanded"); next.delete("added");
+    for (const [key, item] of sourceNavigationParameters(value, expanded, filter)) next.append(key, item);
     return `?${next}`;
   }
   const prior = useRef(selected);
@@ -65,5 +68,12 @@ export function useSourceNavigation(initialQuery: string) {
     window.history.replaceState({ sourceReturn: window.history.state?.sourceReturn }, "", url);
     window.dispatchEvent(new Event(event));
   }
-  return { selected, expanded, navigate, toggle, href };
+  function setFilter(value: "all" | "today" | "yesterday") {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("added");
+    if (value !== "all") url.searchParams.set("added", value);
+    window.history.pushState({ sourceReturn: window.history.state?.sourceReturn }, "", url);
+    window.dispatchEvent(new Event(event));
+  }
+  return { selected, expanded, navigate, toggle, href, filter, setFilter };
 }

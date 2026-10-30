@@ -2,7 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { localeCookie, sourceMessages, type Locale } from '../src/i18n/messages';
+import { localeCookie, sourceMessages, pageMessages, type Locale } from '../src/i18n/messages';
+import { sourceReference } from '../src/contracts/sources';
 import { timeZoneCookie } from '../src/i18n/time-zone';
 
 const origin = 'http://127.0.0.1:4179';
@@ -211,6 +212,7 @@ test.describe('configured connection boundary', () => {
     const sameName = table.getByRole('link', { name: '동일 이름 / duplicate', exact: true });
     await expect(sameName).toHaveCount(2);
     await sameName.nth(1).click();
+    await expect(page.locator('.page-list')).toHaveAttribute('aria-busy', 'false');
     await expect(page.locator('.source-fields')).toContainText('git-only');
     await expect(page.locator('.source-fields > div').filter({ has: page.getByText(t.pageCount, { exact: true }) }).getByRole('definition')).toHaveText('3');
     await expect(page.locator('.source-fields')).toContainText('javascript:alert(1)');
@@ -221,6 +223,7 @@ test.describe('configured connection boundary', () => {
     await expect(page.locator('.source-fields')).toContainText('folder-only');
     await expect(page.locator('.source-fields code').first()).toHaveText('2026-10-27T03:00:00+09:00');
     await expect(page.locator('.source-fields')).toContainText('/원본/<script>/긴 경로');
+    await expect(page.locator('.page-list')).toHaveAttribute('aria-busy', 'false');
     await page.reload();
     await expect(page.locator('.source-fields')).toContainText('folder-only');
     await clearCalls();
@@ -234,7 +237,8 @@ test.describe('configured connection boundary', () => {
   test('real source refresh is single-flight, retains previous observation on failures and purges actual Proxy denial', async ({ page, request }) => {
     await scenario('success'); await page.goto(origin); await clearCalls();
     const t = sourceMessages.en;
-    await page.getByRole('table').getByRole('link').first().click();
+    await page.locator('.table-board table').getByRole('link').first().click();
+    await expect(page.locator('.page-list')).toHaveAttribute('aria-busy', 'false');
     const original = await page.locator('.source-fields time').last().getAttribute('datetime');
     await scenario('slow');
     const refresh = page.getByRole('button', { name: t.refresh, exact: true }).or(page.getByRole('button', { name: t.refreshing, exact: true }));
@@ -307,6 +311,7 @@ test.describe('configured connection boundary', () => {
     const branch = page.locator('.desktop-navigation .source-tree');
     await branch.getByRole('button').first().click();
     await branch.getByRole('link').first().click();
+    await expect(page.locator('.page-list')).toHaveAttribute('aria-busy', 'false');
     const selection = new URL(page.url()).searchParams.get('source');
     for (const setting of ['language', 'timeZone']) {
       const t = sourceMessages[setting === 'language' ? 'en' : 'ko'];
@@ -358,7 +363,7 @@ test.describe('configured connection boundary', () => {
       await expect(native.getByRole('heading', { name: 'connection-private-source-name', exact: true })).toBeVisible();
       expect(new URL(native.url()).searchParams.get('source')).toBe(selected);
       expect(new URL(native.url()).searchParams.getAll('expanded')).toContain(selected);
-      expect(await calls()).toHaveLength(3);
+      expect(await calls()).toHaveLength(7);
     } finally { await context.close(); }
   });
 
@@ -423,5 +428,129 @@ test.describe('configured connection boundary', () => {
     await expect(page.getByText(messages.success, { exact: true })).toBeVisible();
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
+  });
+
+  test('Page API authenticates before reads and validates exact copied source requests', async ({ request }) => {
+    await scenario('pages-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    await clearCalls();
+    for (const mode of ['other', 'missing', 'origin', 'host']) {
+      const denied = await request.post(`${origin}/api/pages`, { headers: { origin, 'x-observatory-test-access': mode }, data: { source, offset: 0 } });
+      expect(denied.status()).toBe(403);
+      expect(denied.headers()['cache-control']).toContain('private, no-store');
+    }
+    expect(await calls()).toHaveLength(0);
+    for (const data of [{ source, offset: 100 }, { source, offset: -1 }, { source, offset: 0, command: 'search' }, { source: '/bin/sh', offset: 0 }]) {
+      expect((await request.post(`${origin}/api/pages`, { headers: { origin }, data })).status()).toBe(400);
+    }
+    expect(await calls()).toHaveLength(0);
+    const response = await request.post(`${origin}/api/pages?command=search`, { headers: { origin }, data: { source, offset: 0 } });
+    expect(response.status()).toBe(200);
+    expect(response.headers()['cache-control']).toContain('private, no-store');
+    const result = await response.json();
+    expect(result.snapshot.pages).toHaveLength(10);
+    expect(result.snapshot.pages[0].createdAt).toBe('2026-10-31T00:30:00Z');
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE_PAGE_BODY|PRIVATE_FRONTMATTER|secret-token/);
+    expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(1);
+    await scenario('pages-omitted');
+    const omitted = await request.post(`${origin}/api/pages`, { headers: { origin }, data: { source, offset: 0 } });
+    expect((await omitted.json()).kind).toBe('unavailable');
+    expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(0);
+  });
+
+  test('selected Page reads append in creation order and retain rows after additional-read failure', async ({ page }) => {
+    await scenario('pages-success');
+    await page.goto(origin);
+    expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(0);
+    await page.locator('.table-board table').getByRole('link').first().click();
+    const pages = page.locator('.page-list');
+    const t = pageMessages.en;
+    await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
+    await expect(pages.getByRole('row').filter({ hasText: '원본 Page 0' }).getByRole('cell').nth(1).locator('time')).toHaveAttribute('datetime', '2026-10-31T00:30:00Z');
+    await expect(pages.getByRole('link')).toHaveCount(0);
+    await scenario('pages-more-failure');
+    await pages.getByRole('button', { name: t.more, exact: true }).click();
+    await expect(pages).toContainText(t.failure);
+    await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
+    await scenario('pages-success');
+    const more = pages.getByRole('button', { name: t.more, exact: true });
+    await more.focus(); await page.keyboard.press('Enter');
+    await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(13);
+    await expect(pages).toContainText(t.end);
+    await expect(pages).toContainText(t.offsets);
+    await expect(pages).not.toContainText(/PRIVATE_PAGE_BODY|PRIVATE_FRONTMATTER|secret-token/);
+  });
+
+  test('History Source selection without a server Page seed completes a delayed initial read', async ({ page }) => {
+    await scenario('pages-success');
+    await page.goto(origin);
+    await clearCalls();
+    let started!: () => void;
+    const intercepted = new Promise<void>(resolve => { started = resolve; });
+    let release!: () => void;
+    const released = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/api/pages', async route => { started(); await released; await route.continue(); });
+    await page.locator('.table-board table').getByRole('link').first().click();
+    await intercepted;
+    const pages = page.locator('.page-list');
+    await expect(pages).toContainText(pageMessages.en.loading);
+    await expect(pages.getByRole('table')).toHaveCount(0);
+    expect(await calls()).toHaveLength(0);
+    release();
+    await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
+    await expect(pages).toHaveAttribute('aria-busy', 'false');
+    expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(1);
+  });
+
+  test('a stalled Page transport expires after 60 seconds and allows manual recovery', async ({ page }) => {
+    await scenario('pages-success');
+    await page.goto(origin);
+    await page.locator('.table-board table').getByRole('link').first().click();
+    const pages = page.locator('.page-list');
+    await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
+    await expect(pages).toHaveAttribute('aria-busy', 'false');
+    await clearCalls();
+    await page.clock.install();
+    let started!: () => void;
+    const intercepted = new Promise<void>(resolve => { started = resolve; });
+    await page.route('**/api/pages', route => { started(); void route; });
+    await pages.getByRole('button', { name: pageMessages.en.refresh, exact: true }).click();
+    await intercepted;
+    await page.clock.fastForward(60_001);
+    await expect(pages).toContainText(pageMessages.en.failure);
+    await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
+    await expect(pages.getByRole('button', { name: pageMessages.en.refresh, exact: true })).toHaveAttribute('aria-disabled', 'false');
+    expect(await calls()).toHaveLength(0);
+    await page.unroute('**/api/pages');
+    await pages.getByRole('button', { name: pageMessages.en.refresh, exact: true }).click();
+    await expect(pages).toHaveAttribute('aria-busy', 'false');
+    await expect(pages).not.toContainText(pageMessages.en.failure);
+    expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(1);
+  });
+
+  for (const locale of ['en', 'ko'] as Locale[]) test(`native ${locale} Page filters survive preference submissions and narrow enlarged layout`, async ({ browser }) => {
+    await scenario('pages-success');
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 320, height: 900 } });
+    try {
+      await context.addCookies([{ name: localeCookie, value: locale, url: origin }, { name: timeZoneCookie, value: 'UTC', url: origin }]);
+      const native = await context.newPage(); await native.goto(origin);
+      await native.locator('.table-board table').getByRole('link').first().click();
+      const t = pageMessages[locale];
+      const pages = native.locator('.page-list');
+      await expect(pages.getByRole('heading', { name: locale === 'en' ? 'Pages' : '페이지', exact: true })).toBeVisible();
+      await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
+      await pages.getByRole('combobox', { name: t.filter, exact: true }).selectOption('yesterday');
+      await pages.getByRole('button', { name: t.apply, exact: true }).click();
+      expect(new URL(native.url()).searchParams.get('added')).toBe('yesterday');
+      const selected = new URL(native.url()).searchParams.get('source');
+      await native.getByRole('combobox', { name: sourceMessages[locale].timeZone, exact: true }).selectOption('Asia/Seoul');
+      await native.getByRole('button', { name: sourceMessages[locale].applyTimeZone, exact: true }).click();
+      expect(new URL(native.url()).searchParams.get('source')).toBe(selected);
+      expect(new URL(native.url()).searchParams.get('added')).toBe('yesterday');
+      await native.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+      expect(await native.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true);
+      await native.screenshot({ path: `test-results/pages-${locale}-320-text200-native.png`, fullPage: true });
+    } finally { await context.close(); }
   });
 });

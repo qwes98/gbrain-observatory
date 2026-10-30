@@ -4,12 +4,24 @@ import type { Readable } from "node:stream";
 
 export const executionPolicy = { timeoutMs: 15_000, stdoutBytes: 1_048_576, stderrBytes: 65_536, killGraceMs: 250 } as const;
 export type ConnectionConfig = { executable: string; cwd: string };
-export type Command = "version" | "capabilities" | "sources";
+export type Command = "version" | "capabilities" | "sources" |
+  { kind: "pages"; sourceId: string; offset: number } |
+  { kind: "page"; sourceId: string; slug: string };
 export type ProcessCause = "not-found" | "permission" | "timeout" | "output-limit" | "failed";
 export type ExecutionResult = { ok: true; stdout: string } | { ok: false; cause: ProcessCause };
-const argv: Record<Command, readonly string[]> = {
+const argv = {
   version: ["--version"], capabilities: ["--tools-json"], sources: ["call", "sources_list", "{}"],
 };
+function commandArguments(command: Command): readonly string[] | null {
+  if (typeof command === "string") return argv[command];
+  if (!/^[a-z0-9-]{1,32}$/.test(command.sourceId)) return null;
+  if (command.kind === "pages") {
+    if (!Number.isSafeInteger(command.offset) || command.offset < 0 || command.offset >= 100 || command.offset % 10 !== 0) return null;
+    return ["call", "list_pages", JSON.stringify({ source_id: command.sourceId, sort: "created_desc", limit: 10, offset: command.offset })];
+  }
+  if (typeof command.slug !== "string" || !command.slug.length || command.slug.length > 1024 || /[\0\r\n]/.test(command.slug)) return null;
+  return ["call", "get_page", JSON.stringify({ source_id: command.sourceId, slug: command.slug, fuzzy: false })];
+}
 
 export function getConnectionConfig(environment: NodeJS.ProcessEnv = process.env): ConnectionConfig | null {
   const executable = environment.OBSERVATORY_GBRAIN_EXECUTABLE;
@@ -48,8 +60,12 @@ function executionCause(error: unknown): ProcessCause {
   return code === "ENOENT" ? "not-found" : code === "EACCES" ? "permission" : "failed";
 }
 
-/** Fixed public commands, no shell, no request-derived environment or arguments. */
-export function runCommand(config: ConnectionConfig, command: Command): Promise<ExecutionResult> {
+/** Fixed public operations and validated structural arguments; no shell or request-derived environment. */
+export function runCommand(config: ConnectionConfig, command: Command, deadline?: number): Promise<ExecutionResult> {
+  const args = commandArguments(command);
+  if (!args) return Promise.resolve({ ok: false, cause: "failed" });
+  const timeout = Math.min(executionPolicy.timeoutMs, deadline === undefined ? executionPolicy.timeoutMs : deadline - Date.now());
+  if (timeout <= 0) return Promise.resolve({ ok: false, cause: "timeout" });
   return new Promise(resolve => {
     let cause: ProcessCause | undefined;
     let output: Buffer[] = [];
@@ -57,7 +73,7 @@ export function runCommand(config: ConnectionConfig, command: Command): Promise<
     let stderrBytes = 0;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
     let child: ChildProcessByStdio<null, Readable, Readable>;
-    try { child = spawn(config.executable, [...argv[command]], {
+    try { child = spawn(config.executable, [...args], {
       cwd: config.cwd, shell: false, detached: process.platform !== "win32",
       env: { ...process.env, GBRAIN_SKIP_STARTUP_HOOKS: "1", GBRAIN_SWEEP: "0", GBRAIN_NO_BANNER: "1", GBRAIN_NO_RETRY_CONNECT: "1" },
       stdio: ["ignore", "pipe", "pipe"],
@@ -79,7 +95,7 @@ export function runCommand(config: ConnectionConfig, command: Command): Promise<
       signal("SIGTERM");
       killTimer = setTimeout(() => signal("SIGKILL"), executionPolicy.killGraceMs);
     }
-    const timer = setTimeout(() => stop("timeout"), executionPolicy.timeoutMs);
+    const timer = setTimeout(() => stop("timeout"), timeout);
     child.stdout.on("data", (chunk: Buffer) => {
       stdoutBytes += chunk.length;
       if (stdoutBytes > executionPolicy.stdoutBytes) stop("output-limit");

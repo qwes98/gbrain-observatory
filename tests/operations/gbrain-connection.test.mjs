@@ -41,6 +41,13 @@ try {
     const large = sourceNavigationPath(reference, Array.from({ length: 100 }, (_, index) => JSON.stringify(['connection-example', `source-${index}`])));
     assert.ok(large.length <= 1026);
     assert.ok(new URL(large, 'https://internal.invalid').searchParams.getAll('expanded').length > 1);
+    const longest = JSON.stringify(['n', 'x'.repeat(234)]);
+    assert.equal(encodeURIComponent(longest).length, 256);
+    const filtered = sourceNavigationPath(longest, Array.from({ length: 100 }, (_, index) => JSON.stringify(['connection-example', `source-${index}`])), 'yesterday');
+    assert.ok(filtered.length <= 1026, 'the Page filter must share the existing total navigation budget');
+    assert.equal(new URL(filtered, 'https://internal.invalid').searchParams.get('added'), 'yesterday');
+    assert.equal(new URL(filtered, 'https://internal.invalid').searchParams.get('source'), longest);
+    assert.equal(validatedSourceReturn(filtered), filtered);
   });
   await test('missing/invalid server settings never execute; explicit audit is required', async () => {
     for (const environment of [{}, { OBSERVATORY_GBRAIN_EXECUTABLE: '/bin/true', OBSERVATORY_GBRAIN_CWD: '/' },

@@ -66,3 +66,35 @@ The configured tests remain in the single serial `connection.spec.ts` group beca
 The fixture behavior tests add composite identity validation, independent expansion, reload/Back/return focus and position, malformed/wrong-connection/missing selection, denial and successful omission. The operations suite tests the actual list projection, unknown coverage and exact preserved fields, scoped empty/unsupported/failed/permission states, and the shared lease between list reads and count probes in both directions. Existing language/time-zone checks continue to run. Synthetic and installed-interface evidence do not establish physical-device, browser UI zoom, assistive-technology or real per-source authorization acceptance.
 
 Review regressions also cover real language/time-zone submissions overlapping a slow refresh, transient versus authoritative server seeds, old-request suppression after denial/omission, copied/native href expansion bounds, actionable expanded child links, empty-name ID fallback, native GET refresh and unique accessible controls, and stalled transport recovery using Playwright's accelerated clock. Focused bilingual time-zone correction checks start from a reloaded invalid URL, clear the error without losing source navigation, then repeat correction to the already-saved value. The existing language-switch/persistence check guards committed select values after enhanced form resets. Operations assertions verify nonzero page counts and distinct namespaces for different successful executable/cwd configurations.
+
+## Recent Page coverage (Story 1.5)
+
+`pages.spec.ts` exercises production Page presentation with isolated synthetic
+data from `fixtures/page-data.ts` and deferred loader controls in the Vite fixture.
+It covers keyboard listbox filtering and clearing, original multilingual data,
+unknown-date exclusion, append/deduplication and failed-more retention, condition
+and effective-zone races, authoritative denial/Source omission and late-response
+suppression. Fixed independent UTC/year-rollover/23-hour spring/25-hour fall
+examples validate calendar semantics; independent English/Korean examples and key
+parity detect shared dictionary fallback. Bilingual 320px/200% text captures and
+axe checks cover the selected-Source Page table. Captures are
+`test-results/pages-{en,ko}-320-text200.png`.
+
+Configured API/SSR/native Page checks live in the existing serial
+`connection.spec.ts` group. Its scenario files are shared, so do not run another
+configured scenario file in parallel. These checks validate authentication and
+host/Origin before spawning, bounded hostile requests, exact Source revalidation,
+private/no-store projection, first ten candidates and manual append/retry, native
+filter/preference navigation retention and bilingual narrow captures. Unselected
+Source-list requests retain their three-call source acquisition; selected reads
+also execute the separate scoped Page acquisition.
+
+`operations/gbrain-pages.test.mjs` transpiles the actual adapter and tests fixed
+argv, composite scope, explicit timestamp availability, oversized/failed/partial/
+wrong-identity details, body/frontmatter exclusion, end/cap/failure distinctions,
+unsafe/duplicate capabilities and shared lease refusal. A shortened actual child
+deadline exercises timeout cleanup without waiting 45 seconds; the production
+overall deadline is separately asserted. These checks use temporary fake CLI
+files and never invoke the installed GBrain executable. Installed Adapter evidence
+belongs separately in the story record and never substitutes for synthetic matrix
+coverage or physical-device/assistive-technology acceptance.

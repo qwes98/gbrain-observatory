@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { defaultLocale, formatResultCount, sourceMessages, type Locale } from "../i18n/messages";
 import { sourceReference, validSourceReference, type Source, type SourceListResult, type SourceListState } from "../contracts/sources";
 import { formatInstant } from "../i18n/time-zone";
 import { useTimeZone } from "./time-zone-provider";
 import { useSourceList } from "./use-source-list";
 import { sourceRowId, useSourceNavigation } from "./use-source-navigation";
+import { PageList } from "./page-list";
+import type { PageListResult } from "../contracts/pages";
+import type { PageLoader } from "./use-page-list";
 
 interface SourceScreenProps {
   initialState: SourceListState;
@@ -18,6 +21,9 @@ interface SourceScreenProps {
   refreshEndpoint?: string;
   nativeRefresh?: boolean;
   loadSources?: () => Promise<SourceListResult>;
+  initialPages?: PageListResult;
+  pagesEndpoint?: string;
+  loadPages?: PageLoader;
 }
 
 function Timestamp({ value, locale }: { value: string | null; locale: Locale }) {
@@ -55,7 +61,7 @@ function Navigation({ locale, sources, navigation }: { locale: Locale; sources: 
   </nav>;
 }
 
-export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativeRefresh = false, initialQuery = "", locale = defaultLocale, languageControl, timeZoneControl, connectionControl }: SourceScreenProps) {
+export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativeRefresh = false, initialQuery = "", locale = defaultLocale, languageControl, timeZoneControl, connectionControl, initialPages, pagesEndpoint, loadPages }: SourceScreenProps) {
   const t = sourceMessages[locale];
   const zone = useTimeZone();
   const loader = loadSources ?? (refreshEndpoint ? async (): Promise<SourceListResult> => {
@@ -69,10 +75,23 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
       return await response.json() as SourceListResult;
     } finally { clearTimeout(timer); }
   } : undefined);
-  const { state, snapshot, refresh } = useSourceList(initialState, loader);
+  const { state, snapshot, refresh, authority } = useSourceList(initialState, loader);
   const navigation = useSourceNavigation(initialQuery);
   const selectedSource = navigation.selected !== null && validSourceReference(navigation.selected)
     ? snapshot?.sources.find(source => sourceReference(source) === navigation.selected) : undefined;
+  const initialSelections = new URLSearchParams(initialQuery).getAll("source");
+  const initialPagesSource = initialSelections.length === 1 ? initialSelections[0] : null;
+  const [pageSeed, setPageSeed] = useState({ seed: initialPages, usable: true });
+  let currentPageSeed = pageSeed;
+  if (pageSeed.seed !== initialPages) {
+    currentPageSeed = { seed: initialPages, usable: initialPagesSource === navigation.selected && !!selectedSource };
+    setPageSeed(currentPageSeed);
+  } else if (pageSeed.usable && (initialPagesSource !== navigation.selected || (navigation.selected !== null && !selectedSource))) {
+    currentPageSeed = { ...pageSeed, usable: false };
+    setPageSeed(currentPageSeed);
+  }
+  // Leaving consumes the original server seed: returning must not revive denied or superseded rows.
+  const scopedInitialPages = currentPageSeed.usable && initialPagesSource === navigation.selected ? currentPageSeed.seed : undefined;
   const guide = useRef<HTMLDialogElement>(null);
   const guideTrigger = useRef<HTMLButtonElement>(null);
   const previous = !!snapshot && state.kind !== "success";
@@ -101,7 +120,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             <div className="toolbar-actions">
               {languageControl}
               {canReload && <form action="/" method="get" onSubmit={event => { if (loader) { event.preventDefault(); void refresh(); } }}>
-                {Array.from(new URLSearchParams(navigation.href(navigation.selected).slice(1))).filter(([key]) => key === "source" || key === "expanded").map(([key, value], index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />)}
+                {Array.from(new URLSearchParams(navigation.href(navigation.selected).slice(1))).filter(([key]) => key === "source" || key === "expanded" || key === "added").map(([key, value], index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />)}
                 <button type="submit" aria-disabled={state.kind === "loading"}>{state.kind === "loading" ? t.refreshing : t.refresh}</button>
               </form>}
               <button type="button" ref={guideTrigger} onClick={() => guide.current?.showModal()}>{t.guide}</button>
@@ -133,7 +152,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
               <div><dt>{t.lastSyncedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.lastSyncedAt} />{selectedSource.lastSyncedAt !== null && <code>{selectedSource.lastSyncedAt}</code>}</dd></div>
               <div><dt>{t.checkedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.checkedAt} />{selectedSource.checkedAt !== null && <code>{selectedSource.checkedAt}</code>}</dd></div>
               <div><dt>{t.connectorProvider}</dt><dd>{t.notProvided}</dd></div>
-            </dl></> : <p>{t.selectionUnavailableReason}</p>}
+            </dl><PageList key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={navigation.href(navigation.selected).slice(1)} locale={locale} loadPages={loadPages} /></> : <p>{t.selectionUnavailableReason}</p>}
           </section>}
           <div className="table-board" hidden={navigation.selected !== null} aria-busy={state.kind === "loading"}>
             <div className="table-scroll" role="region" aria-label={t.sourceList} tabIndex={0}>

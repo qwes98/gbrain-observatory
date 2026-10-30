@@ -1,4 +1,4 @@
-# GBrain source reads and manual connection checks
+# GBrain source/Page reads and manual connection checks
 
 The authenticated source screen can check one server-configured local GBrain connection. Authenticated dynamic page requests read the source list once after the owner guard. A page reload or native preference submission can therefore read sources again. Builds never read GBrain. A manual native form POST requires the configured authorized identity, host and external HTTPS Origin again at the action boundary. There is no polling, prefetch, automatic retry, command input or browser credential field.
 
@@ -22,7 +22,7 @@ Before opting in, verify the selected working directory and inherited GBrain con
 
 ## Fixed public command policy
 
-The server executes at most these three commands in order, with `shell:false`:
+Source lists and connection checks execute these three commands in order, with `shell:false`:
 
 1. `--version`: require exactly supported `gbrain 0.60.323.0` output.
 2. `--tools-json`: validate the public catalog before reading sources. `sources_list` must uniquely advertise read scope, nonmutating/idempotent behavior, no extra required scopes, and the verified optional boolean `include_archived` parameter/schema.
@@ -63,3 +63,46 @@ The installed public-interface investigation on 2026-10-30 verified version 0.60
 Review hardening preserves source selection and expansion through both language and time-zone submissions. Enhanced submissions reconcile the existing screen in place; native submissions use validated internal redirects. Transient server results retain a permissible previous observation and a surviving refresh; authoritative results supersede older requests. Source navigation limits expansion query data to leave a total navigation budget of 1,024 characters. Native GET refresh uses the same authenticated page; enhanced refresh uses POST with a 60-second client transport deadline, above the server's three-command execution budget. Empty or whitespace-only names use the original Source ID for presentation. Initial reads use ordinary server rendering and browser navigation progress, preserving correct native connection forms in a single acquisition.
 
 Final Story 1.4 verification passed typecheck, lint, production build, 134 synthetic browser checks and 40 operations checks. The final independent follow-up reported no actionable findings. The installed production Adapter separately returned four active sources at 2026-10-30T04:44:55.799Z in 1,224ms, preserving unknown registry coverage and synchronization outcomes. This was an Adapter validation, with no deployment, service restart or setting change; it does not establish physical-device acceptance.
+
+## Recent Pages in an exact Source (Story 1.5)
+
+Selecting a permitted Source reads its recent Page candidates through the public
+`list_pages` operation, fixed to `sort: "created_desc"`, ten candidates per batch
+and raw offsets below 100. The adapter repeats version/catalog/current-source
+validation for every acquisition under the shared process lease. It never accepts
+request-provided commands, executable paths, environment or arbitrary URLs.
+`POST /api/pages` authenticates before reading the bounded JSON request, accepts
+only the exact structural Source reference and allowed offset, and returns
+private/no-store results. Unselected Source-list loads do not read Pages.
+
+Exact `get_page` requests enrich each candidate's timestamps with `fuzzy: false`.
+Only verified detail `created_at` becomes added time, meaning Brain-row creation,
+not original authorship or first ingestion. Modification remains independent.
+Missing, invalid, failed, unsupported, partial or changed-identity detail never
+fabricates creation time. Bodies and frontmatter are discarded before projection.
+The ordinary official CLI lifecycle/read-history policy above also applies to
+these detail reads; this does not authorize explicit writes or upstream patches.
+
+A Page acquisition has one 45-second overall deadline within the existing child
+timeout/byte/cleanup budgets. Source lists, connection checks and Page batches
+share the immediate-refusal lease. There is no polling or automatic retry.
+Additional-read failures retain permitted prior rows and their original
+observations; denial or successful Source omission removes them. Page failure
+does not alter Source synchronization status.
+
+The UI's All/Today/Yesterday filters apply only to the loaded range in the shared
+effective time zone. Unknown creation dates are excluded from day filters. Native
+initial Page results, filters and refresh work without JavaScript. Additional-results
+append requires JavaScript; native refresh starts again with the first batch.
+Native filter and preference submissions preserve validated Source/condition
+navigation; enhanced filter controls preserve keyboard focus. Composite identity prevents
+equal slugs from merging across Sources. Raw offset advances independently of
+deduplication. Observed end, the 100-candidate application cap and failure remain
+distinct, with explicit unknown coverage and concurrent-offset drift disclosures.
+Page bodies and Page-detail navigation remain Story 1.6 work.
+
+`tests/operations/gbrain-pages.test.mjs` and the Page browser tests use isolated
+synthetic CLI/fixture data. Executed results and separately sanitized installed
+Adapter evidence are recorded in Story 1.5's Implementation Notes. Test presence,
+historical live samples and screenshot/axe checks do not establish physical-device,
+assistive-technology or real per-source authorization acceptance.

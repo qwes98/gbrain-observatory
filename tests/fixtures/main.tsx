@@ -8,6 +8,8 @@ import { sourceSnapshot as snapshot, timestampSnapshot, timeZoneSnapshot } from 
 import { availableTimeZones, resolveTimeZone } from '../../src/i18n/time-zone';
 import { TimeZoneProvider } from '../../src/ui/time-zone-provider';
 import { TimeZoneControl } from '../../src/ui/time-zone-control';
+import type { PageListResult, PageRequest } from '../../src/contracts/pages';
+import { pageSnapshot } from './page-data';
 
 const parameters = new URLSearchParams(location.search);
 const locale = resolveLocale(parameters.get('locale'));
@@ -34,6 +36,21 @@ const control = {
   setSeed: (value: string) => { void value; },
 };
 Object.assign(window, { __sourceFixture: control });
+const pageControl = { calls: [] as PageRequest[], release: (kind: string) => { void kind; } };
+const initialPageResult: PageListResult = { kind: 'success', snapshot: pageSnapshot };
+Object.assign(window, { __pageFixture: pageControl });
+function loadPages(request: PageRequest): Promise<PageListResult> {
+  pageControl.calls.push(request);
+  return new Promise(resolve => { pageControl.release = kind => {
+    if (kind === 'denied') resolve({ kind: 'denied', reason: 'access-denied' });
+    else if (kind === 'unavailable') resolve({ kind: 'unavailable', reason: 'source-unavailable' });
+    else if (kind === 'failure') resolve({ kind: 'failure', reason: 'request-failed' });
+    else if (kind === 'unknown') resolve({ kind: 'unknown', reason: 'unsupported' });
+    else resolve({ kind: 'success', snapshot: { ...pageSnapshot, sourceReference: request.source, offset: request.offset, nextOffset: request.offset + 3,
+      range: 'observed-end', pages: [...pageSnapshot.pages, { ...pageSnapshot.pages[0], slug: 'additional', title: '추가 원본 / additional' }],
+      observation: { startedAt: '2026-10-31T12:01:00Z', completedAt: '2026-10-31T12:01:01Z' } } });
+  }; });
+}
 let detectedZone: unknown = parameters.get('deviceTimeZone') ?? 'UTC';
 const detectZone = () => detectedZone;
 Object.assign(window, { __timeZoneFixture: { setDeviceZone: (value: unknown) => { detectedZone = value; } } });
@@ -66,7 +83,9 @@ function Fixture() {
   useEffect(() => { control.setSeed = value => setInitialState({ ...states[value] }); }, []);
   const [settings, setSettings] = useState(() => resolveTimeZone(parameters.get('timeZone'), parameters.get('savedDeviceTimeZone')));
   return <TimeZoneProvider settings={settings} detect={detectZone}>
-    <SourceScreen locale={locale} initialState={initialState} loadSources={scenario === 'unconfigured' ? undefined : loadSources}
+    <SourceScreen locale={locale} initialState={initialState} initialQuery={location.search} loadSources={scenario === 'unconfigured' ? undefined : loadSources}
+      initialPages={scenario.startsWith('pages-') && scenario !== 'pages-unseeded' ? initialPageResult : undefined}
+      loadPages={scenario.startsWith('pages-') ? loadPages : undefined}
       timeZoneControl={<TimeZoneControl locale={locale} preference={settings.preference} zones={availableTimeZones(settings.preference, settings.deviceZone)} action={(_previous, data) => {
         setSettings(resolveTimeZone(data.get('timeZone'), detectedZone));
         return { kind: 'saved' };

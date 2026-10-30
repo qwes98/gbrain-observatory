@@ -48,31 +48,33 @@ export function boundedSourceReference(value: string): boolean {
   return value.length <= 256 && encodeURIComponent(value).length <= 256 && validSourceReference(value);
 }
 /** Keep navigation small enough for ordinary request lines and same-origin referrers. */
-export function sourceNavigationParameters(selected: string | null, expanded: string[]): URLSearchParams {
+export function sourceNavigationParameters(selected: string | null, expanded: string[], added: string = "all"): URLSearchParams {
   const result = new URLSearchParams();
   if (selected !== null && boundedSourceReference(selected)) result.set("source", selected);
+  if (added === "today" || added === "yesterday") result.set("added", added);
   const branches = new URLSearchParams();
   for (const value of new Set(expanded)) {
     if (!boundedSourceReference(value)) continue;
     const next = new URLSearchParams(branches);
     next.append("expanded", value);
-    // Reserve the maximum encoded selection plus its key/separator so links keep every branch.
-    if (next.toString().length > expansionQueryLimit - 264) break;
+    // Reserve the maximum encoded selection and date condition so links keep every branch.
+    if (next.toString().length > expansionQueryLimit - 280) break;
     branches.append("expanded", value);
     result.append("expanded", value);
   }
   return result;
 }
-export function sourceNavigationPath(selected: string | null, expanded: string[]): string {
-  const query = sourceNavigationParameters(selected, expanded).toString();
+export function sourceNavigationPath(selected: string | null, expanded: string[], added: string = "all"): string {
+  const query = sourceNavigationParameters(selected, expanded, added).toString();
   return query ? `/?${query}` : "/";
 }
 export function validatedSourceReturn(value: FormDataEntryValue | null): string {
-  if (typeof value !== "string" || value.length > expansionQueryLimit + 2 || !value.startsWith("/") || value.startsWith("//")) return "/";
+  if (typeof value !== "string" || value.length > expansionQueryLimit + 32 || !value.startsWith("/") || value.startsWith("//")) return "/";
   try {
     const url = new URL(value, "https://internal.invalid");
     if (url.pathname !== "/" || url.origin !== "https://internal.invalid") return "/";
     const selected = url.searchParams.getAll("source");
-    return sourceNavigationPath(selected.length === 1 ? selected[0] : null, url.searchParams.getAll("expanded"));
+    const added = url.searchParams.getAll("added");
+    return sourceNavigationPath(selected.length === 1 ? selected[0] : null, url.searchParams.getAll("expanded"), added.length === 1 ? added[0] : "all");
   } catch { return "/"; }
 }

@@ -266,3 +266,41 @@ export function formatResultCount(locale: Locale, count: number): string {
   const formattedCount = new Intl.NumberFormat(locale).format(count);
   return locale === "ko" ? `결과 ${formattedCount}개` : `${formattedCount} ${count === 1 ? "result" : "results"}`;
 }
+
+const pagesEn = {
+  title: "Pages", caption: "Recently added Pages in the selected source",
+  filter: "Added", all: "All", today: "Today", yesterday: "Yesterday", apply: "Apply Page filter",
+  filterOptions: "Added date options", titleColumn: "Title", kind: "Kind", added: "Added to Brain", changed: "Changed",
+  refresh: "Refresh Pages", more: "Load more", loading: "Reading Pages…", complete: "Page read complete.",
+  empty: "No matching Pages in the loaded range.", pending: "Read Pages to inspect the loaded range.",
+  failure: "Pages could not be read. Try again manually.", previous: "Previously checked Pages remain visible.",
+  unavailable: "Pages for this exact source are unavailable. Earlier rows have been removed.",
+  unsupported: "The public Page response could not be verified. Try again manually after checking compatibility.",
+  unconfigured: "The server connection is not ready to read Pages.", busy: "Another GBrain read is running. Try again manually when it finishes.",
+  end: "End observed for this batch. This is not a global total.", cap: "Limit reached: 100 Page entries checked in this range. Refresh manually to start again.",
+  range: "More Pages may be available.", unknown: "Time not provided", invalid: "Time could not be verified",
+  partial: "Time unavailable in a partial detail response", failed: "Detail time could not be read", unsupportedTime: "Detail time is unsupported",
+  meaning: "Added means creation of the Brain row, not original authorship or first ingestion. Changed is independent of added time.",
+  coverage: "Filters and counts describe only the loaded range. Unknown creation dates are excluded from Today and Yesterday. Coverage is unknown.",
+  offsets: "Results may change while loading. New additions can change order or leave Pages out of the loaded range; refresh manually to check again.",
+  observation: "Observation interval", listObservation: "List observation", detailObservation: "Detail observation", loaded: "Loaded", matching: "Matching",
+};
+const pagesKo: typeof pagesEn = {
+  title: "페이지", caption: "선택한 소스에 최근 추가된 페이지",
+  filter: "추가 시점", all: "전체", today: "오늘", yesterday: "어제", apply: "페이지 필터 적용",
+  filterOptions: "추가 날짜 옵션", titleColumn: "제목", kind: "종류", added: "Brain에 추가됨", changed: "변경됨",
+  refresh: "페이지 새로 확인", more: "더 불러오기", loading: "페이지를 읽고 있어요…", complete: "페이지 확인을 마쳤어요.",
+  empty: "불러온 범위에 조건에 맞는 페이지가 없어요.", pending: "페이지를 읽어 불러온 범위를 확인해 주세요.",
+  failure: "페이지를 읽지 못했어요. 수동으로 다시 시도해 주세요.", previous: "이전에 확인한 페이지를 표시하고 있어요.",
+  unavailable: "이 소스의 페이지를 볼 수 없어 이전 행을 지웠어요.",
+  unsupported: "공개 페이지 응답을 검증하지 못했어요. 호환성을 확인한 뒤 수동으로 다시 시도해 주세요.",
+  unconfigured: "서버 연결이 아직 페이지를 읽을 준비가 되지 않았어요.", busy: "다른 GBrain 조회가 진행 중이에요. 끝난 뒤 수동으로 다시 확인해 주세요.",
+  end: "이번 묶음에서 끝을 관찰했어요. 전체 개수를 뜻하지 않아요.", cap: "이번 범위에서 페이지 항목 100개를 확인해 앱 제한에 도달했어요. 수동으로 새로 확인하면 처음부터 읽어요.",
+  range: "후보가 더 있을 수 있어요.", unknown: "시각이 제공되지 않음", invalid: "시각을 검증할 수 없음",
+  partial: "부분 상세 응답에 시각이 없음", failed: "상세 시각을 읽을 수 없음", unsupportedTime: "지원하지 않는 상세 시각",
+  meaning: "추가는 Brain 행의 생성 시점이며 원본 작성이나 최초 수집 시점이 아니에요. 변경 시점은 추가 시점과 별개예요.",
+  coverage: "필터와 개수는 불러온 범위만 설명해요. 생성 날짜를 모르는 페이지는 오늘·어제에서 제외해요. 전체 포함 범위는 알 수 없어요.",
+  offsets: "불러오는 동안 결과가 바뀔 수 있어요. 새로 추가된 페이지로 순서가 달라지거나 불러온 범위에서 페이지가 빠질 수 있어요. 수동으로 새로 확인해 주세요.",
+  observation: "관찰 구간", listObservation: "목록 관찰", detailObservation: "상세 관찰", loaded: "불러옴", matching: "조건에 맞음",
+};
+export const pageMessages = { en: pagesEn, ko: pagesKo };

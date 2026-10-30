@@ -38,5 +38,5 @@ export function useSourceList(initialState: SourceListState, loadSources?: () =>
     finally { if (active.current === request) active.current = null; }
   }
 
-  return { state, snapshot, refresh };
+  return { state, snapshot, refresh, authority };
 }

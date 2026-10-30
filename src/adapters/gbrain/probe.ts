@@ -7,6 +7,15 @@ import { getConnectionConfig, runCommand, type ConnectionConfig } from "./runner
 export const supportedVersion = "0.60.323.0";
 const leaseKey = Symbol.for("observatory.gbrain.connection-lease");
 const runtime = globalThis as typeof globalThis & { [leaseKey]?: boolean };
+export function acquireConnectionLease(): boolean {
+  if (runtime[leaseKey]) return false;
+  runtime[leaseKey] = true;
+  return true;
+}
+export function releaseConnectionLease(): void { runtime[leaseKey] = false; }
+export function connectionNamespace(config: ConnectionConfig): string {
+  return "connection-" + createHash("sha256").update(JSON.stringify([config.executable, config.cwd])).digest("hex");
+}
 const record = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
 export function hasSafeSourceCapability(value: unknown): boolean {
@@ -57,8 +66,7 @@ type Acquisition = Exclude<ConnectionResult, { kind: "success" }> | {
 /** One process lease and the same three bounded commands for either public read consumer. */
 async function acquire(config: ConnectionConfig | null): Promise<Acquisition> {
   if (!config) return { kind: "unconfigured", cause: "settings" };
-  if (runtime[leaseKey]) return { kind: "failure", cause: "busy" };
-  runtime[leaseKey] = true;
+  if (!acquireConnectionLease()) return { kind: "failure", cause: "busy" };
   try {
     const versionResult = await runCommand(config, "version");
     if (!versionResult.ok) return { kind: "failure", cause: versionResult.cause };
@@ -75,7 +83,7 @@ async function acquire(config: ConnectionConfig | null): Promise<Acquisition> {
   } catch {
     return { kind: "failure", cause: "compatibility" };
   } finally {
-    runtime[leaseKey] = false;
+    releaseConnectionLease();
   }
 }
 export async function checkConnection(config: ConnectionConfig | null = getConnectionConfig()): Promise<ConnectionResult> {
@@ -92,7 +100,7 @@ export async function listSources(config: ConnectionConfig | null = getConnectio
     return { kind: "failure", reason: result.cause === "busy" ? "busy" : "request-failed" };
   }
   // Namespace is stable across reads and discloses neither executable nor working directory.
-  const namespace = "connection-" + createHash("sha256").update(JSON.stringify([config.executable, config.cwd])).digest("hex");
+  const namespace = connectionNamespace(config);
   const sources: Source[] = result.rows.map(row => ({
     namespace, id: row.id, name: row.name, connection: {
       ...(row.local_path !== null ? { folder: row.local_path } : {}),

@@ -57,3 +57,26 @@ export function formatInstant(value: unknown, locale: Locale, zone: string): { t
   const offset = offsetPart === "GMT" ? "UTC+00:00" : offsetPart.replace("GMT", "UTC");
   return { text, offset };
 }
+
+/** Calendar identity in the effective zone, independent of 23/25-hour DST days. */
+export function calendarDay(value: string, zone: string): string | null {
+  if (!isInstant(value) || !isTimeZone(zone)) return null;
+  const parts = new Intl.DateTimeFormat("en", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", era: "short" }).formatToParts(new Date(value));
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find(part => part.type === type)?.value;
+  return `${get("era")}-${get("year")}-${get("month")}-${get("day")}`;
+}
+
+export function matchesCalendarFilter(value: string | null, filter: "all" | "today" | "yesterday", zone: string, now: string): boolean {
+  if (filter === "all") return true;
+  if (!value || !isInstant(now)) return false;
+  const day = calendarDay(now, zone);
+  if (!day) return false;
+  // Subtract from the local calendar date, never from the current instant.
+  const local = new Intl.DateTimeFormat("en", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(now));
+  const get = (type: Intl.DateTimeFormatPartTypes) => Number(local.find(part => part.type === type)?.value);
+  const yesterday = new Date(0);
+  yesterday.setUTCFullYear(get("year"), get("month") - 1, get("day") - 1);
+  yesterday.setUTCHours(12, 0, 0, 0);
+  const previous = `AD-${yesterday.getUTCFullYear()}-${String(yesterday.getUTCMonth() + 1).padStart(2, "0")}-${String(yesterday.getUTCDate()).padStart(2, "0")}`;
+  return calendarDay(value, zone) === (filter === "today" ? day : previous);
+}
