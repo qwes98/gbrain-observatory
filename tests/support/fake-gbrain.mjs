@@ -29,6 +29,11 @@ else if (args[0] === '--tools-json') {
   else if (scenario === 'missing') console.log('[]');
   else { if (scenario === 'archived-default') capabilities[0].schema.properties.include_archived.default = true; if (scenario === 'unsafe') capabilities[0].mutating = true; console.log(JSON.stringify(capabilities)); }
 } else if (JSON.stringify(args) === JSON.stringify(['call', 'sources_list', '{}'])) {
-  const respond = () => console.log(JSON.stringify(scenario === 'partial' ? { sources: [source], next_cursor: 'private-cursor' } : scenario === 'shape' ? { sources: [{}] } : { sources: scenario === 'empty' ? [] : [source] }));
+  const rows = scenario === 'fields' ? [
+    { ...source, id: 'folder-only', name: '동일 이름 / duplicate', local_path: '/원본/<script>/긴 경로', remote_url: null, federated: false, last_sync_at: '2026-10-27T03:00:00+09:00' },
+    { ...source, id: 'git-only', name: '동일 이름 / duplicate', local_path: null, remote_url: 'javascript:alert(1)', strategy: 'original-strategy' },
+    { ...source, id: 'neither', name: '둘 다 없음', local_path: null, remote_url: null },
+  ] : [source];
+  const respond = () => console.log(JSON.stringify(scenario === 'partial' ? { sources: [source], next_cursor: 'private-cursor' } : scenario === 'shape' ? { sources: [{}] } : { sources: scenario === 'empty' ? [] : rows }));
   if (scenario === 'slow' || scenario === 'concurrent') setTimeout(respond, scenario === 'concurrent' ? 2000 : 800); else respond();
 } else { process.stderr.write('Unexpected argv'); process.exitCode = 14; }

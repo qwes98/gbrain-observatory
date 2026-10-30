@@ -2,9 +2,11 @@ import type { SourceSnapshot } from "../../src/contracts/sources";
 
 // Source content intentionally includes Korean independently of the selected UI language.
 export const sourceSnapshot: SourceSnapshot = {
+  scope: 'returned-active-sources', coverage: 'unknown',
   checkedAt: '2026-10-27T03:00:00.000Z',
   sources: [
     {
+      namespace: 'fixture-connection', federated: false, strategy: null, pageCount: 0,
       id: 'fixture-only-alpha',
       name: '검증 전용 소스 알파',
       connection: { folder: '/검증/매우-긴-폴더-경로/프로젝트/자료', repository: 'https://example.invalid/fixture/repository' },
@@ -13,6 +15,7 @@ export const sourceSnapshot: SourceSnapshot = {
       checkedAt: '2026-10-27T02:59:00.000Z',
     },
     {
+      namespace: 'fixture-connection', federated: false, strategy: null, pageCount: 0,
       id: 'fixture-only-beta',
       name: '검증 전용 소스 베타',
       connection: {},
@@ -21,6 +24,7 @@ export const sourceSnapshot: SourceSnapshot = {
       checkedAt: null,
     },
     {
+      namespace: 'fixture-connection', federated: false, strategy: null, pageCount: 0,
       id: 'fixture-only-gamma',
       name: '검증 전용 소스 감마',
       connection: { repository: 'https://example.invalid/fixture/attention' },
@@ -33,6 +37,7 @@ export const sourceSnapshot: SourceSnapshot = {
 
 // Inputs are deliberately independent of Date.parse/browser timezone defaults.
 export const timestampSnapshot: SourceSnapshot = {
+  scope: 'returned-active-sources', coverage: 'unknown',
   checkedAt: '2026-10-27T12:00:00+09:00',
   sources: [
     { ...sourceSnapshot.sources[0], id: 'invalid-time', name: '잘못된 시각 검증', lastSyncedAt: 'not-a-date', checkedAt: '2026-02-30T10:00:00Z' },
@@ -45,6 +50,7 @@ export const timestampSnapshot: SourceSnapshot = {
 
 // Fixed calendar and DST anchors; source values must survive every display-zone change.
 export const timeZoneSnapshot: SourceSnapshot = {
+  scope: 'returned-active-sources', coverage: 'unknown',
   checkedAt: '2026-01-01T00:15:00Z',
   sources: [
     { ...sourceSnapshot.sources[0], id: 'midnight-anchor', name: '자정 경계 검증', lastSyncedAt: '2026-01-01T00:15:00Z', checkedAt: '2026-01-01T00:15:00Z' },

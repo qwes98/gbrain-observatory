@@ -79,7 +79,7 @@ tbody tr:last-child > * { border-bottom: 0; }
 tbody tr:hover { background: #fafbfc; }
 tbody time { white-space: nowrap; }
 .connection-values { margin: 0; max-width: 350px; overflow-wrap: anywhere; }
-.connection-values > div { display: flex; align-items: baseline; gap: 8px; }
+.connection-values > div { display: block; margin-block: 4px; }
 .connection-values dt { color: var(--tertiary); font-size: .75rem; flex: 0 0 36px; }
 .connection-values dd { margin: 0; }
 .sync-status { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 8px; font-size: .75rem; }
@@ -143,3 +143,24 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .connection-panel dl > div { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; }
 .connection-panel dt { font-weight: 600; }
 .connection-panel dd { margin: 0; }
+
+.source-tree { margin: 6px 0 12px; }
+.source-branch { display: grid; grid-template-columns: 32px minmax(0, 1fr); align-items: start; gap: 3px; margin-block: 6px; }
+.source-expand { min-width: 28px; padding: 4px; }
+.source-branch a { font-size: .8125rem; min-height: 32px; padding: 4px; overflow-wrap: anywhere; }
+.source-branch small { display: block; color: var(--secondary); }
+.source-branch-info { grid-column: 2; margin: 0; font-size: .75rem; overflow-wrap: anywhere; }
+.source-detail { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; overflow-wrap: anywhere; }
+.source-detail h2 { margin-top: 16px; }
+.source-detail h3 { font-size: 1rem; margin-block: 16px; }
+.source-fields { margin: 0; }
+.source-fields > div { padding-block: 12px; border-top: 1px solid var(--line); }
+.source-fields dt { color: var(--secondary); font-weight: 600; }
+.source-fields dd { margin: 6px 0 0; white-space: pre-wrap; }
+.source-fields code { display: block; font-size: .8125rem; margin-top: 6px; }
+.return-list, tbody th a { display: inline-block; min-height: 32px; padding-block: 5px; }
+[hidden] { display: none !important; }
+@media (max-width: 760px), (any-pointer: coarse) {
+  .source-branch { grid-template-columns: 44px minmax(0, 1fr); }
+  .source-expand, .source-branch a, .return-list, tbody th a { min-height: 44px; }
+}

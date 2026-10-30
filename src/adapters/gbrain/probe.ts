@@ -1,3 +1,6 @@
+import { isInstant } from "../../i18n/time-zone";
+import { createHash } from "node:crypto";
+import type { SourceListResult, Source } from "../../contracts/sources";
 import type { ConnectionResult } from "../../contracts/connection";
 import { getConnectionConfig, runCommand, type ConnectionConfig } from "./runner";
 
@@ -26,7 +29,7 @@ export function hasSafeSourceCapability(value: unknown): boolean {
 }
 
 /** Reject continuation/partial/unrecognized envelopes instead of claiming complete coverage. */
-export function sourceProbeCount(value: unknown): number | null {
+export function sourceRows(value: unknown): PublicSource[] | null {
   if (!record(value) || Object.keys(value).length !== 1 || !Array.isArray(value.sources)) return null;
   const ids = new Set<string>();
   for (const source of value.sources) {
@@ -34,15 +37,25 @@ export function sourceProbeCount(value: unknown): number | null {
         typeof source.name !== "string" || typeof source.federated !== "boolean" ||
         !Number.isSafeInteger(source.page_count) || (source.page_count as number) < 0 ||
         !["local_path", "remote_url", "strategy", "last_sync_at"].every(key => source[key] === null || typeof source[key] === "string") ||
-        (typeof source.last_sync_at === "string" && !Number.isFinite(Date.parse(source.last_sync_at))) ||
+        (typeof source.last_sync_at === "string" && !isInstant(source.last_sync_at)) ||
         Object.keys(source).some(key => !["id", "name", "local_path", "remote_url", "federated", "strategy", "page_count", "last_sync_at"].includes(key))) return null;
     ids.add(source.id);
   }
-  return value.sources.length;
+  return value.sources as PublicSource[];
 }
 
-/** At most three sequential calls per manual check, with one lease across the whole check. */
-export async function checkConnection(config: ConnectionConfig | null = getConnectionConfig()): Promise<ConnectionResult> {
+type PublicSource = {
+  id: string; name: string; local_path: string | null; remote_url: string | null;
+  federated: boolean; strategy: string | null; page_count: number; last_sync_at: string | null;
+};
+export function sourceProbeCount(value: unknown): number | null {
+  return sourceRows(value)?.length ?? null;
+}
+type Acquisition = Exclude<ConnectionResult, { kind: "success" }> | {
+  kind: "success"; rows: PublicSource[]; observedAt: string;
+};
+/** One process lease and the same three bounded commands for either public read consumer. */
+async function acquire(config: ConnectionConfig | null): Promise<Acquisition> {
   if (!config) return { kind: "unconfigured", cause: "settings" };
   if (runtime[leaseKey]) return { kind: "failure", cause: "busy" };
   runtime[leaseKey] = true;
@@ -56,12 +69,36 @@ export async function checkConnection(config: ConnectionConfig | null = getConne
     if (!hasSafeSourceCapability(JSON.parse(capabilityResult.stdout))) return { kind: "failure", cause: "compatibility" };
     const sourceResult = await runCommand(config, "sources");
     if (!sourceResult.ok) return { kind: "failure", cause: sourceResult.cause };
-    const sourceCount = sourceProbeCount(JSON.parse(sourceResult.stdout));
-    if (sourceCount === null) return { kind: "failure", cause: "compatibility" };
-    return { kind: "success", observation: { version, observedAt: new Date().toISOString(), scope: "local-active-sources", sourceCount } };
+    const rows = sourceRows(JSON.parse(sourceResult.stdout));
+    if (!rows) return { kind: "failure", cause: "compatibility" };
+    return { kind: "success", rows, observedAt: new Date().toISOString() };
   } catch {
     return { kind: "failure", cause: "compatibility" };
   } finally {
     runtime[leaseKey] = false;
   }
+}
+export async function checkConnection(config: ConnectionConfig | null = getConnectionConfig()): Promise<ConnectionResult> {
+  const result = await acquire(config);
+  if (result.kind !== "success") return result;
+  return { kind: "success", observation: { version: supportedVersion, observedAt: result.observedAt, scope: "local-active-sources", sourceCount: result.rows.length } };
+}
+export async function listSources(config: ConnectionConfig | null = getConnectionConfig()): Promise<SourceListResult> {
+  const result = await acquire(config);
+  if (result.kind === "unconfigured" || !config) return { kind: "unconfigured", reason: "adapter-not-configured" };
+  if (result.kind === "failure") {
+    if (result.cause === "compatibility") return { kind: "unknown", reason: "unsupported" };
+    if (result.cause === "permission") return { kind: "denied", reason: "access-denied" };
+    return { kind: "failure", reason: result.cause === "busy" ? "busy" : "request-failed" };
+  }
+  // Namespace is stable across reads and discloses neither executable nor working directory.
+  const namespace = "connection-" + createHash("sha256").update(JSON.stringify([config.executable, config.cwd])).digest("hex");
+  const sources: Source[] = result.rows.map(row => ({
+    namespace, id: row.id, name: row.name, connection: {
+      ...(row.local_path !== null ? { folder: row.local_path } : {}),
+      ...(row.remote_url !== null ? { repository: row.remote_url } : {}),
+    }, federated: row.federated, strategy: row.strategy, pageCount: row.page_count,
+    sync: { status: "unknown", label: "" }, lastSyncedAt: row.last_sync_at, checkedAt: result.observedAt,
+  }));
+  return { kind: "success", snapshot: { sources, checkedAt: result.observedAt, scope: "returned-active-sources", coverage: "unknown" } };
 }

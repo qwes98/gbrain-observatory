@@ -158,7 +158,7 @@ for (const locale of locales) {
     await expect(page.locator('.table-footer')).toContainText(expected.counts[2]);
     await expect(page.locator('.table-footer')).toContainText(expected.checkedTime);
     await expect(page.locator('.table-footer')).toContainText(expected.timeZone);
-    await expect(table.getByText(expected.notProvided, { exact: true })).toHaveCount(3);
+    await expect(table.getByText(expected.notProvided, { exact: true })).toHaveCount(6);
     await page.getByRole('button', { name: t.guide, exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveAccessibleName(expected.guide);
     await expect(page.getByRole('dialog')).toContainText(t.guideHeading);

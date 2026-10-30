@@ -1,3 +1,3 @@
 import "server-only";
-export { checkConnection } from "./probe";
+export { checkConnection, listSources } from "./probe";
 export { getConnectionConfig } from "./runner";

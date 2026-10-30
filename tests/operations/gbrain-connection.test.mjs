@@ -9,13 +9,16 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
 const directory = await mkdtemp(join(tmpdir(), 'observatory-connection-'));
-for (const name of ['runner', 'probe']) {
-  const source = await readFile(`src/adapters/gbrain/${name}.ts`, 'utf8');
+for (const name of ['runner', 'probe', 'time-zone']) {
+  const source = await readFile(name === 'time-zone' ? 'src/i18n/time-zone.ts' : `src/adapters/gbrain/${name}.ts`, 'utf8');
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-  await writeFile(join(directory, `${name}.mjs`), compiled.replace('"./runner"', '"./runner.mjs"'));
+  await writeFile(join(directory, `${name}.mjs`), compiled.replace('"./runner"', '"./runner.mjs"').replace('"../../i18n/time-zone"', '"./time-zone.mjs"'));
 }
-const { checkConnection, hasSafeSourceCapability, sourceProbeCount } = await import(pathToFileURL(join(directory, 'probe.mjs')));
+const { checkConnection, listSources, hasSafeSourceCapability, sourceProbeCount } = await import(pathToFileURL(join(directory, 'probe.mjs')));
 const { getConnectionConfig, executionPolicy, runCommand } = await import(pathToFileURL(join(directory, 'runner.mjs')));
+const navigationSource = await readFile('src/contracts/sources.ts', 'utf8');
+await writeFile(join(directory, 'sources.mjs'), ts.transpileModule(navigationSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText);
+const { validatedSourceReturn, sourceNavigationPath } = await import(pathToFileURL(join(directory, 'sources.mjs')));
 const executable = join(directory, 'fake-gbrain');
 await copyFile('tests/support/fake-gbrain.mjs', executable);
 await chmod(executable, 0o700);
@@ -30,6 +33,15 @@ async function assertStopped(pid) {
 }
 
 try {
+  await test('navigation return validation bounds expansion and rejects malformed internal addresses', () => {
+    const reference = JSON.stringify(['connection-example', 'source-id']);
+    const path = sourceNavigationPath(reference, [reference]);
+    assert.equal(validatedSourceReturn(path), path);
+    for (const value of ['/\\', '/\\\\', '//external.invalid', '/other', 'https://external.invalid']) assert.equal(validatedSourceReturn(value), '/');
+    const large = sourceNavigationPath(reference, Array.from({ length: 100 }, (_, index) => JSON.stringify(['connection-example', `source-${index}`])));
+    assert.ok(large.length <= 1026);
+    assert.ok(new URL(large, 'https://internal.invalid').searchParams.getAll('expanded').length > 1);
+  });
   await test('missing/invalid server settings never execute; explicit audit is required', async () => {
     for (const environment of [{}, { OBSERVATORY_GBRAIN_EXECUTABLE: '/bin/true', OBSERVATORY_GBRAIN_CWD: '/' },
       { OBSERVATORY_GBRAIN_EXECUTABLE: 'relative', OBSERVATORY_GBRAIN_CWD: '/', OBSERVATORY_GBRAIN_READ_AUDIT: 'local-read-reviewed' }]) assert.equal(getConnectionConfig(environment), null);
@@ -59,6 +71,10 @@ try {
     }
     assert.equal(sourceProbeCount({ sources: [], truncated: true }), null);
     assert.equal(sourceProbeCount({ sources: [], total: 12 }), null);
+    const row = { id: 'timestamp', name: 'original', local_path: null, remote_url: null, federated: false, strategy: null, page_count: 0, last_sync_at: null };
+    for (const last_sync_at of ['2026-02-30T10:00:00Z', '2026-10-27T03:00:00', 'not-a-date']) {
+      assert.equal(sourceProbeCount({ sources: [{ ...row, last_sync_at }] }), null);
+    }
     assert.equal(hasSafeSourceCapability({ tools: [] }), false);
     for (const override of [{ idempotent: false }, { scope: 'write' }, { required_scopes: ['admin'] }, { parameters: { required: 'string' } }, { schema: { type: 'object', properties: {}, required: ['id'] } }]) {
       const base = { name: 'sources_list', scope: 'read', mutating: false, idempotent: true, required_scopes: [], parameters: { include_archived: 'boolean?' }, schema: { type: 'object', properties: { include_archived: { type: 'boolean' } } } };
@@ -133,6 +149,71 @@ if (process.argv[2] === 'exit') setTimeout(() => process.exit(0), 500);`);
     assert.deepEqual(await checkConnection(config), { kind: 'failure', cause: 'busy' });
     assert.equal((await first).kind, 'success');
     assert.equal((await calls()).length, 3);
+  });
+  await test('real list projection preserves independent fields, duplicate names, timestamps and unknown coverage', async () => {
+    await scenario('fields');
+    const result = await listSources(config);
+    assert.equal(result.kind, 'success');
+    const { snapshot } = result;
+    assert.equal(snapshot.scope, 'returned-active-sources');
+    assert.equal(snapshot.coverage, 'unknown');
+    assert.equal(snapshot.sources.length, 3);
+    const [folder, git, neither] = snapshot.sources;
+    assert.equal(folder.name, git.name);
+    assert.notEqual(folder.id, git.id);
+    assert.match(folder.namespace, /^connection-[a-f0-9]{64}$/);
+    assert.doesNotMatch(folder.namespace, new RegExp(directory));
+    assert.equal(folder.connection.folder, '/원본/<script>/긴 경로');
+    assert.equal(folder.connection.repository, undefined);
+    assert.equal(git.connection.folder, undefined);
+    assert.equal(git.connection.repository, 'javascript:alert(1)');
+    assert.deepEqual(neither.connection, {});
+    assert.equal(folder.lastSyncedAt, '2026-10-27T03:00:00+09:00');
+    assert.equal(folder.sync.status, 'unknown');
+    assert.equal(folder.federated, false);
+    assert.equal(folder.pageCount, 3);
+    assert.equal(git.strategy, 'original-strategy');
+    assert.equal(folder.checkedAt, snapshot.checkedAt);
+    const again = await listSources(config);
+    assert.equal(again.snapshot.sources[0].namespace, folder.namespace);
+    assert.equal((await calls()).length, 6);
+    const alternateExecutable = join(directory, 'alternate-gbrain');
+    await copyFile(executable, alternateExecutable); await chmod(alternateExecutable, 0o700);
+    const executableResult = await listSources({ ...config, executable: alternateExecutable });
+    const alternateDirectory = await mkdtemp(join(tmpdir(), 'observatory-other-source-'));
+    try {
+      await writeFile(join(alternateDirectory, 'scenario'), 'fields'); await writeFile(join(alternateDirectory, 'calls'), '');
+      const directoryResult = await listSources({ ...config, cwd: alternateDirectory });
+      assert.equal(executableResult.kind, 'success'); assert.equal(directoryResult.kind, 'success');
+      assert.equal(executableResult.snapshot.sources[0].id, folder.id);
+      assert.equal(directoryResult.snapshot.sources[0].id, folder.id);
+      assert.notEqual(executableResult.snapshot.sources[0].namespace, folder.namespace);
+      assert.notEqual(directoryResult.snapshot.sources[0].namespace, folder.namespace);
+      assert.notEqual(directoryResult.snapshot.sources[0].namespace, executableResult.snapshot.sources[0].namespace);
+    } finally { await rm(alternateDirectory, { recursive: true, force: true }); }
+  });
+  await test('list empty, unsupported, failed and denied execution have explicit sanitized states', async () => {
+    await scenario('empty');
+    assert.deepEqual((await listSources(config)).snapshot.sources, []);
+    for (const name of ['version', 'missing', 'unsafe', 'malformed', 'partial', 'shape']) {
+      await scenario(name);
+      assert.deepEqual(await listSources(config), { kind: 'unknown', reason: 'unsupported' });
+    }
+    await scenario('nonzero');
+    assert.deepEqual(await listSources(config), { kind: 'failure', reason: 'request-failed' });
+    const forbidden = join(directory, 'forbidden');
+    assert.deepEqual(await listSources({ ...config, executable: forbidden }), { kind: 'denied', reason: 'access-denied' });
+    assert.deepEqual(await listSources(null), { kind: 'unconfigured', reason: 'adapter-not-configured' });
+  });
+  await test('list and count probe share one lease in both directions', async () => {
+    await scenario('slow');
+    const list = listSources(config);
+    assert.deepEqual(await checkConnection(config), { kind: 'failure', cause: 'busy' });
+    assert.equal((await list).kind, 'success');
+    const check = checkConnection(config);
+    assert.deepEqual(await listSources(config), { kind: 'failure', reason: 'busy' });
+    assert.equal((await check).kind, 'success');
+    assert.equal((await calls()).length, 6);
   });
   await test('a SIGTERM-resistant command is killed/reaped within the fixed deadline with no retry', async () => {
     await scenario('timeout');

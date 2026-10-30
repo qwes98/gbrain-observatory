@@ -356,3 +356,116 @@ for (const scenario of ['unconfigured', 'failure', 'unknown']) {
     await assertNoPageOverflow(page);
   });
 }
+
+test('selection uses composite URL identity and restores independent expansion, focus and table position', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await fixture(page, 'success');
+  const row = page.getByRole('table').getByRole('link', { name: sourceName, exact: true });
+  const region = page.getByRole('region', { name: t.sourceList, exact: true });
+  await region.evaluate(element => { element.scrollLeft = 100; });
+  const sidebar = page.locator('.desktop-navigation');
+  const expand = sidebar.getByRole('button', { name: `${t.expandSource}: ${sourceName} · ${alphaSource.id}`, exact: true });
+  await expand.click();
+  await sidebar.getByRole('button', { name: `${t.expandSource}: ${betaSource.name} · ${betaSource.id}`, exact: true }).click();
+  await row.focus(); await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: sourceName, exact: true })).toBeFocused();
+  expect(new URL(page.url()).searchParams.get('source')).toBe(JSON.stringify([alphaSource.namespace, alphaSource.id]));
+  await expect(page.getByRole('heading', { name: t.basicInformation, exact: true })).toBeVisible();
+  await expect(page.locator('.source-fields')).toContainText(alphaSource.connection.folder!);
+  await expect(page.locator('.source-fields')).toContainText(t.syncUnknown);
+  await expect(expand).toHaveAttribute('aria-expanded', 'true');
+  await page.reload();
+  await expect(page.getByRole('heading', { name: sourceName, exact: true })).toBeVisible();
+  await expect(expand).toHaveAttribute('aria-expanded', 'true');
+  await page.getByRole('link', { name: t.returnToList, exact: true }).click();
+  await expect(row).toBeFocused();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: sourceName, exact: true })).toBeFocused();
+  await page.goBack();
+  await expect(row).toBeFocused();
+  await region.evaluate(element => { element.scrollLeft = 120; });
+  const left = await region.evaluate(element => element.scrollLeft);
+  expect(left).toBeGreaterThan(0);
+  await sidebar.locator('.source-tree a').first().click();
+  await page.getByRole('link', { name: t.returnToList, exact: true }).click();
+  await expect(row).toBeFocused();
+  await expect.poll(() => region.evaluate(element => element.scrollLeft)).toBe(left);
+  await expect(page.locator('a[href*="page="], a[href*="fact="]')).toHaveCount(0);
+});
+
+for (const selection of ['invalid', JSON.stringify(['other-connection', alphaSource.id]), JSON.stringify([alphaSource.namespace, 'missing'])]) {
+  test(`invalid exact selection has no fallback: ${selection}`, async ({ page }) => {
+    await fixture(page, 'success');
+    const url = new URL(page.url()); url.searchParams.set('source', selection);
+    await page.goto(url.toString());
+    await expect(page.getByRole('heading', { name: t.selectionUnavailable, exact: true })).toBeVisible();
+    await expect(page.locator('.source-fields')).toHaveCount(0);
+    await page.getByRole('link', { name: t.returnToList, exact: true }).click();
+    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(3);
+  });
+}
+
+for (const outcome of ['denied', 'omitted']) {
+  test(`refresh ${outcome} removes unavailable selection content and retains a safe list return`, async ({ page }) => {
+    await fixture(page, `retry-${outcome}`);
+    await page.getByRole('table').getByRole('link', { name: sourceName, exact: true }).click();
+    await page.getByRole('button', { name: t.refresh, exact: true }).click();
+    await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
+    await release(page);
+    await expect(page.getByRole('heading', { name: t.selectionUnavailable, exact: true })).toBeVisible();
+    await expect(page.locator('.source-fields')).toHaveCount(0);
+    if (outcome === 'denied') {
+      await expect(page.locator('.source-tree a')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: t.issues.denied.title, exact: true })).toBeVisible();
+      await expect(page.getByText(t.previous, { exact: false })).toHaveCount(0);
+    }
+    await page.getByRole('link', { name: t.returnToList, exact: true }).click();
+    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(outcome === 'denied' ? 0 : 2);
+  });
+}
+
+test('transient seeds preserve a surviving refresh while authoritative seeds reject older completion', async ({ page }) => {
+  await fixture(page, 'retry-success');
+  const refresh = page.getByRole('button', { name: t.refresh, exact: true }).or(page.getByRole('button', { name: t.refreshing, exact: true }));
+  await refresh.click();
+  await page.evaluate(() => (window as unknown as { __sourceFixture: { setSeed: (value: string) => void } }).__sourceFixture.setSeed('busy'));
+  await expect(refresh).toBeDisabled();
+  await expect(page.getByText(t.previous, { exact: false })).toBeVisible();
+  await expect(page.locator('.table-footer time')).toHaveAttribute('datetime', oldCheckedAt);
+  await release(page);
+  await expect(refresh).toBeEnabled();
+  await expect(page.locator('.table-footer time')).toHaveAttribute('datetime', '2026-10-27T04:00:00.000Z');
+  for (const seed of ['empty', 'denied']) {
+    await refresh.click();
+    await page.evaluate(value => (window as unknown as { __sourceFixture: { setSeed: (value: string) => void } }).__sourceFixture.setSeed(value), seed);
+    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(0);
+    await release(page);
+    await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(0);
+    await expect(refresh).toBeEnabled();
+  }
+});
+
+test('all source names have an ID fallback without altering supplied name data', async ({ page }) => {
+  await fixture(page, 'unnamed');
+  for (const source of sourceSnapshot.sources) {
+    await page.getByRole('table').getByRole('link', { name: source.id, exact: true }).click();
+    await expect(page.getByRole('heading', { name: source.id, exact: true })).toBeVisible();
+    await page.getByRole('link', { name: t.returnToList, exact: true }).click();
+  }
+});
+
+test('navigation hrefs and actionable child links preserve bounded independent expansion', async ({ page }) => {
+  await fixture(page, 'many');
+  const sidebar = page.locator('.desktop-navigation');
+  for (const button of await sidebar.getByRole('button').all()) await button.click();
+  const url = new URL(page.url());
+  expect(new URLSearchParams(url.searchParams.getAll("expanded").map(value => ["expanded", value])).toString().length).toBeLessThanOrEqual(760);
+  expect(url.searchParams.getAll('expanded').length).toBeGreaterThan(1);
+  const child = sidebar.getByRole('link', { name: `${t.basicInformation} · many-0`, exact: true });
+  const childHref = await child.getAttribute('href');
+  expect(new URL(childHref!, page.url()).searchParams.getAll('expanded')).toEqual(url.searchParams.getAll('expanded'));
+  await page.goto(new URL(childHref!, page.url()).toString());
+  await expect(page.getByRole('heading', { name: 'Source 0', exact: true })).toBeVisible();
+  const back = await page.getByRole('link', { name: t.returnToList, exact: true }).getAttribute('href');
+  expect(new URL(back!, page.url()).searchParams.getAll('expanded')).toEqual(url.searchParams.getAll('expanded'));
+});
