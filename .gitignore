@@ -2,8 +2,10 @@
 /docs/
 /.hermes.md
 /_bmad/
+/skills/
 
 # Local agent/editor state
+/AGENTS.md
 .omx/
 .orca/
 .hermes/
