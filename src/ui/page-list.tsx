@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from "react";
 import { pageReference, type PageFieldAvailability, type PageFilter, type PageListResult } from "../contracts/pages";
 import { pageMessages, formatResultCount, type Locale } from "../i18n/messages";
 import { calendarDay, formatInstant, matchesCalendarFilter } from "../i18n/time-zone";
@@ -38,6 +38,30 @@ function AddedFilter({ locale, filter, setFilter, query }: { locale: Locale; fil
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const options = filterOptions;
+  const popover = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<CSSProperties>({});
+  useLayoutEffect(() => {
+    if (!open) return;
+    function place() {
+      if (!trigger.current || !popover.current) return;
+      const bounds = trigger.current.getBoundingClientRect();
+      if (bounds.bottom <= 0 || bounds.top >= window.innerHeight) { setOpen(false); return; }
+      const width = popover.current.getBoundingClientRect().width;
+      const below = Math.max(0, window.innerHeight - bounds.bottom - 12);
+      const above = Math.max(0, bounds.top - 12);
+      const upward = below < popover.current.scrollHeight && above > below;
+      setPosition({
+        left: Math.max(8, Math.min(bounds.left, window.innerWidth - width - 8)),
+        top: upward ? undefined : bounds.bottom + 4,
+        bottom: upward ? window.innerHeight - bounds.top + 4 : undefined,
+        maxHeight: Math.max(44, upward ? above : below),
+      });
+    }
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [open]);
   function close(focus: boolean) { setOpen(false); if (focus) trigger.current?.focus(); }
   function focusOption(index: number) { root.current?.querySelectorAll<HTMLButtonElement>('[role="option"]')[index]?.focus(); }
   useEffect(() => {
@@ -64,8 +88,8 @@ function AddedFilter({ locale, filter, setFilter, query }: { locale: Locale; fil
       <button type="submit">{t.apply}</button>
     </form>
     <div hidden={!enhanced}>
-      <button ref={trigger} type="button" aria-label={`${t.filter}: ${t[filter]}`} aria-haspopup="listbox" aria-expanded={open} aria-controls="page-added-options" onClick={() => setOpen(value => !value)}>{t.filter}: {t[filter]} <span aria-hidden="true">▾</span></button>
-      {open && <div id="page-added-options" className="page-filter-options" role="listbox" aria-label={t.filterOptions}>{options.map(value => <button type="button" role="option" aria-selected={filter === value} key={value} onClick={() => { setFilter(filter === value ? "all" : value); close(true); }}>{t[value]}</button>)}</div>}
+      <button className="page-filter-trigger" data-selected={filter !== "all"} ref={trigger} type="button" aria-label={`${t.filter}: ${t[filter]}`} aria-haspopup="listbox" aria-expanded={open} aria-controls="page-added-options" onClick={() => setOpen(value => !value)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" /></svg><span>{t.filter}</span>{" "}{filter !== "all" && <span className="page-filter-value">{t[filter]}</span>}</button>
+      {open && <div ref={popover} style={position} id="page-added-options" className="page-filter-options" role="listbox" aria-label={t.filterOptions}><div className="page-filter-title" aria-hidden="true">{t.filter}</div>{options.map(value => <button type="button" role="option" aria-selected={filter === value} key={value} onClick={() => { setFilter(filter === value ? "all" : value); close(true); }}><span>{t[value]}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4L19 6" /></svg></button>)}</div>}
     </div>
   </div>;
 }
@@ -91,9 +115,9 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
     : state.kind === "denied" || state.kind === "unavailable" ? t.unavailable
     : state.kind === "unknown" ? t.unsupported : state.kind === "unconfigured" ? t.unconfigured : null;
   return <section className="page-list" aria-labelledby="pages-title" aria-busy={state.kind === "loading"}>
-    <h3 id="pages-title">{t.title}</h3>
-    <div className="pages-toolbar"><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} />
-      {canRead && <form action="/" method="get" onSubmit={event => { if (enhanced) { event.preventDefault(); refresh(); } }}>
+    <div className="page-board">
+    <div className="pages-toolbar"><h2 id="pages-title">{t.title}</h2><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} />
+      {canRead && <form className="page-refresh" action="/" method="get" onSubmit={event => { if (enhanced) { event.preventDefault(); refresh(); } }}>
         {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "added").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
         <button type="submit" aria-disabled={state.kind === "loading"}>{t.refresh}</button>
       </form>}
@@ -102,14 +126,17 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
       {state.kind === "loading" && <p>{t.loading}</p>}{issue && <p>{issue}</p>}
       {snapshot && state.kind !== "success" && <p>{t.previous}</p>}
       {state.kind === "success" && <p className="sr-only">{t.complete} {t.matching}: {formatResultCount(locale, rows.length)} · {t.loaded}: {formatResultCount(locale, snapshot?.pages.length ?? 0)}</p>}
-      {snapshot && rows.length === 0 && <p>{t.empty}</p>}{state.kind === "idle" && !snapshot && <p>{t.pending}</p>}
+      {snapshot && rows.length === 0 && <p className="sr-only">{t.matching}: {formatResultCount(locale, 0)}. {t.empty}</p>}{state.kind === "idle" && !snapshot && <p>{t.pending}</p>}
     </div>
-    {snapshot && <><div className="table-board"><div className="table-scroll" role="region" aria-label={t.caption} tabIndex={0}>
-      <table><caption className="sr-only">{t.caption}</caption><thead><tr><th scope="col">{t.titleColumn}</th><th scope="col">{t.kind}</th><th scope="col">{t.added}</th><th scope="col">{t.changed}</th></tr></thead>
-        <tbody>{rows.map(page => <tr key={pageReference(page)}><th scope="row">{page.title.trim() ? page.title : page.slug}<small className="page-slug">{page.slug}</small>
-          {page.detailObservation && <details className="page-observation"><summary>{t.detailObservation}</summary><Interval value={page.detailObservation} locale={locale} /></details>}</th>
+    {snapshot && <div className="page-table"><div className="table-scroll" role="region" aria-label={t.caption} tabIndex={0}>
+      <table><colgroup><col /><col className="page-kind-column" /><col className="page-time-column" /><col className="page-time-column" /></colgroup><caption className="sr-only">{t.caption}</caption><thead><tr><th scope="col">{t.titleColumn}</th><th scope="col">{t.kind}</th><th scope="col">{t.added}</th><th scope="col">{t.changed}</th></tr></thead>
+        <tbody>{rows.map(page => <tr key={pageReference(page)}><th scope="row">{page.title.trim() ? page.title : page.slug}
+          {rows.filter(candidate => (candidate.title.trim() ? candidate.title : candidate.slug) === (page.title.trim() ? page.title : page.slug)).length > 1 && <small className="page-slug">{page.slug}</small>}
+          <details className="page-observation"><summary aria-label={`${t.pageInformation}: ${page.title.trim() ? page.title : page.slug} · ${page.slug}`}>{t.pageInformation}</summary><small className="page-slug">{page.slug}</small>{page.detailObservation && <><span>{t.detailObservation}</span><Interval value={page.detailObservation} locale={locale} /></>}</details></th>
           <td>{page.kind}</td><td><PageTime value={page.createdAt} availability={page.creationAvailability} locale={locale} /></td><td><PageTime value={page.updatedAt} availability={page.modificationAvailability} locale={locale} /></td></tr>)}</tbody>
-      </table></div><div className="table-footer"><span>{t.matching}: {formatResultCount(locale, rows.length)} · {t.loaded}: {formatResultCount(locale, snapshot.pages.length)}</span><span>{zone}</span></div></div>
+      </table></div>{rows.length === 0 && <p className="page-empty">{t.empty}</p>}<div className="table-footer"><span>{t.matching}: {formatResultCount(locale, rows.length)} · {t.loaded}: {formatResultCount(locale, snapshot.pages.length)}</span><span>{zone}</span></div></div>}
+    </div>
+    {snapshot && <>
       <p className="scope-note">{t.listObservation}: <Interval value={snapshot.listObservation} locale={locale} /></p>
       <p className="scope-note">{t.observation}: <Interval value={snapshot.observation} locale={locale} /></p>
       <p className="scope-note">{snapshot.range === "cap" ? t.cap : snapshot.range === "observed-end" ? t.end : t.range}</p>

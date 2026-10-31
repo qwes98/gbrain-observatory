@@ -61,6 +61,13 @@ const en = {
   skipToMain: "Skip to main content",
   description: "Inspect available source connections and the information GBrain provides.",
   coverageUnknown: "Count includes only active sources returned by this connection. Sources may be silently withheld by access scope; the registry total and coverage are unknown.",
+  sourceDescription: "A source groups stored Pages for inspection.",
+  sourceSync: "Source synchronization",
+  syncExplanation: "A synchronization timestamp does not establish success or whether later changes are included.",
+  ingestionService: "Ingestion service",
+  serviceNotProvided: "Connection information not provided",
+  serviceUnknown: "The ingestion service connection for this source could not be verified.",
+  syncHelp: "Synchronization help",
   basicInformation: "Basic information",
   returnToList: "Return to source list",
   selectionUnavailable: "Selected source is unavailable",
@@ -188,6 +195,13 @@ const ko: typeof en = {
   skipToMain: "본문으로 건너뛰기",
   description: "현재 볼 수 있는 소스의 연결과 GBrain에서 제공한 정보를 확인해요.",
   coverageUnknown: "개수는 이 연결에서 반환된 활성 소스만 포함해요. 접근 범위에 따라 소스가 별도 안내 없이 제외될 수 있어 전체 등록 수와 포함 범위는 알 수 없어요.",
+  sourceDescription: "저장된 페이지를 묶어 보는 소스예요.",
+  sourceSync: "소스 동기화",
+  syncExplanation: "동기화 시각만으로 성공 여부나 이후 변경의 반영 여부를 알 수는 없어요.",
+  ingestionService: "수집 서비스",
+  serviceNotProvided: "연결 정보 미제공",
+  serviceUnknown: "이 소스의 수집 서비스 연결 정보를 확인할 수 없어요.",
+  syncHelp: "동기화 도움말",
   basicInformation: "기본 정보",
   returnToList: "소스 목록으로 돌아가기",
   selectionUnavailable: "선택한 소스를 볼 수 없어요",
@@ -268,7 +282,7 @@ export function formatResultCount(locale: Locale, count: number): string {
 }
 
 const pagesEn = {
-  title: "Pages", caption: "Recently added Pages in the selected source",
+  title: "Recently added Pages", caption: "Recently added Pages in the selected source",
   filter: "Added", all: "All", today: "Today", yesterday: "Yesterday", apply: "Apply Page filter",
   filterOptions: "Added date options", titleColumn: "Title", kind: "Kind", added: "Added to Brain", changed: "Changed",
   refresh: "Refresh Pages", more: "Load more", loading: "Reading Pages…", complete: "Page read complete.",
@@ -283,10 +297,10 @@ const pagesEn = {
   meaning: "Added means creation of the Brain row, not original authorship or first ingestion. Changed is independent of added time.",
   coverage: "Filters and counts describe only the loaded range. Unknown creation dates are excluded from Today and Yesterday. Coverage is unknown.",
   offsets: "Results may change while loading. New additions can change order or leave Pages out of the loaded range; refresh manually to check again.",
-  observation: "Observation interval", listObservation: "List observation", detailObservation: "Detail observation", loaded: "Loaded", matching: "Matching",
+  pageInformation: "Page information", observation: "Observation interval", listObservation: "List observation", detailObservation: "Detail observation", loaded: "Loaded", matching: "Matching",
 };
 const pagesKo: typeof pagesEn = {
-  title: "페이지", caption: "선택한 소스에 최근 추가된 페이지",
+  title: "최근 추가된 페이지", caption: "선택한 소스에 최근 추가된 페이지",
   filter: "추가 시점", all: "전체", today: "오늘", yesterday: "어제", apply: "페이지 필터 적용",
   filterOptions: "추가 날짜 옵션", titleColumn: "제목", kind: "종류", added: "Brain에 추가됨", changed: "변경됨",
   refresh: "페이지 새로 확인", more: "더 불러오기", loading: "페이지를 읽고 있어요…", complete: "페이지 확인을 마쳤어요.",
@@ -301,6 +315,6 @@ const pagesKo: typeof pagesEn = {
   meaning: "추가는 Brain 행의 생성 시점이며 원본 작성이나 최초 수집 시점이 아니에요. 변경 시점은 추가 시점과 별개예요.",
   coverage: "필터와 개수는 불러온 범위만 설명해요. 생성 날짜를 모르는 페이지는 오늘·어제에서 제외해요. 전체 포함 범위는 알 수 없어요.",
   offsets: "불러오는 동안 결과가 바뀔 수 있어요. 새로 추가된 페이지로 순서가 달라지거나 불러온 범위에서 페이지가 빠질 수 있어요. 수동으로 새로 확인해 주세요.",
-  observation: "관찰 구간", listObservation: "목록 관찰", detailObservation: "상세 관찰", loaded: "불러옴", matching: "조건에 맞음",
+  pageInformation: "페이지 정보", observation: "관찰 구간", listObservation: "목록 관찰", detailObservation: "상세 관찰", loaded: "불러옴", matching: "조건에 맞음",
 };
 export const pageMessages = { en: pagesEn, ko: pagesKo };

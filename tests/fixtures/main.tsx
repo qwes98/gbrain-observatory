@@ -22,6 +22,7 @@ const states: Record<string, SourceListState> = {
   unnamed: { kind: 'success', snapshot: { ...snapshot, sources: snapshot.sources.map((source, index) => ({ ...source, name: index === 0 ? '' : '   ' })) } },
   many: { kind: 'success', snapshot: { ...snapshot, sources: Array.from({ length: 30 }, (_, index) => ({ ...snapshot.sources[0], id: `many-${index}`, name: `Source ${index}` })) } },
   success: { kind: 'success', snapshot },
+  'long-names': { kind: 'success', snapshot: { ...snapshot, sources: snapshot.sources.map(source => ({ ...source, name: 'Source'.repeat(20) })) } },
   timestamps: { kind: 'success', snapshot: timestampSnapshot },
   'time-zones': { kind: 'success', snapshot: timeZoneSnapshot },
   empty: { kind: 'success', snapshot: { ...snapshot, sources: [] } },

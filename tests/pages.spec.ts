@@ -101,8 +101,8 @@ test('Page messages include complete Korean translations and independent accepta
     expect(pageMessages.ko[key].trim(), key).not.toBe('');
     expect(pageMessages.ko[key], key).not.toBe(pageMessages.en[key]);
   }
-  expect(pageMessages.en).toMatchObject({ title: 'Pages', filter: 'Added', today: 'Today', yesterday: 'Yesterday', added: 'Added to Brain' });
-  expect(pageMessages.ko).toMatchObject({ title: '페이지', filter: '추가 시점', today: '오늘', yesterday: '어제', added: 'Brain에 추가됨' });
+  expect(pageMessages.en).toMatchObject({ title: 'Recently added Pages', filter: 'Added', today: 'Today', yesterday: 'Yesterday', added: 'Added to Brain' });
+  expect(pageMessages.ko).toMatchObject({ title: '최근 추가된 페이지', filter: '추가 시점', today: '오늘', yesterday: '어제', added: 'Brain에 추가됨' });
 });
 
 test('Page day filters use local calendar dates across spring and fall DST transitions', () => {
@@ -309,7 +309,7 @@ for (const locale of ['en', 'ko'] as const) test(`${locale} Page table and filte
   await page.setViewportSize({ width: 320, height: 900 });
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
   const pages = page.locator('.page-list');
-  await expect(pages.getByRole('heading', { name: locale === 'en' ? 'Pages' : '페이지', exact: true })).toBeVisible();
+  await expect(pages.getByRole('heading', { name: locale === 'en' ? 'Recently added Pages' : '최근 추가된 페이지', exact: true })).toBeVisible();
   expect(await page.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: `test-results/pages-${locale}-320-text200.png`, fullPage: true });

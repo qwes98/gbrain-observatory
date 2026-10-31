@@ -213,8 +213,12 @@ test.describe('configured connection boundary', () => {
     await expect(sameName).toHaveCount(2);
     await sameName.nth(1).click();
     await expect(page.locator('.page-list')).toHaveAttribute('aria-busy', 'false');
+    await page.locator('.source-metadata summary').click();
+    await expect(page.locator('.source-metadata dd').filter({ hasText: 'git-only' })).toBeVisible();
     await expect(page.locator('.source-fields')).toContainText('git-only');
-    await expect(page.locator('.source-fields > div').filter({ has: page.getByText(t.pageCount, { exact: true }) }).getByRole('definition')).toHaveText('3');
+    const pageCount = page.locator('.source-fields dt').filter({ hasText: t.pageCount }).locator('..').locator('dd');
+    await expect(pageCount).toHaveText('3');
+    await expect(pageCount).toBeVisible();
     await expect(page.locator('.source-fields')).toContainText('javascript:alert(1)');
     await expect(page.locator('.source-fields a')).toHaveCount(0);
     await expect(page.locator('.source-fields')).toContainText(t.syncUnknown);
@@ -222,6 +226,7 @@ test.describe('configured connection boundary', () => {
     await page.locator('.desktop-navigation .source-tree a').first().click();
     await expect(page.locator('.source-fields')).toContainText('folder-only');
     await expect(page.locator('.source-fields code').first()).toHaveText('2026-10-27T03:00:00+09:00');
+    await expect(page.locator('.source-fields code').first()).toBeVisible();
     await expect(page.locator('.source-fields')).toContainText('/원본/<script>/긴 경로');
     await expect(page.locator('.page-list')).toHaveAttribute('aria-busy', 'false');
     await page.reload();
@@ -538,7 +543,7 @@ test.describe('configured connection boundary', () => {
       await native.locator('.table-board table').getByRole('link').first().click();
       const t = pageMessages[locale];
       const pages = native.locator('.page-list');
-      await expect(pages.getByRole('heading', { name: locale === 'en' ? 'Pages' : '페이지', exact: true })).toBeVisible();
+      await expect(pages.getByRole('heading', { name: locale === 'en' ? 'Recently added Pages' : '최근 추가된 페이지', exact: true })).toBeVisible();
       await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
       await pages.getByRole('combobox', { name: t.filter, exact: true }).selectOption('yesterday');
       await pages.getByRole('button', { name: t.apply, exact: true }).click();

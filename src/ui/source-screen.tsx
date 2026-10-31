@@ -40,12 +40,12 @@ function sourceName(source: Source) { return source.name.trim() ? source.name : 
 function Navigation({ locale, sources, navigation }: { locale: Locale; sources: Source[]; navigation: ReturnType<typeof useSourceNavigation> }) {
   const t = sourceMessages[locale];
   return <nav aria-label={t.mainNavigation}>
-    <a className="nav-item current" href={navigation.href(null)} onClick={event => navigation.navigate(null, event)} aria-current={navigation.selected === null ? "page" : undefined}><span aria-hidden="true">▤</span>{t.sources}</a>
+    <a className={`nav-item${navigation.selected === null ? " current" : ""}`} href={navigation.href(null)} onClick={event => navigation.navigate(null, event)} aria-current={navigation.selected === null ? "page" : undefined}><span aria-hidden="true">▤</span>{t.sources}</a>
     <div className="source-tree">{sources.map(source => {
       const reference = sourceReference(source);
       return <div key={reference} className="source-branch">
-        <button type="button" className="source-expand" aria-expanded={navigation.expanded.includes(reference)} aria-label={`${t.expandSource}: ${sourceName(source)} · ${source.id}`} onClick={() => navigation.toggle(reference)}>{navigation.expanded.includes(reference) ? "−" : "+"}</button>
-        <a href={navigation.href(reference)} aria-current={navigation.selected === reference ? "page" : undefined} onClick={event => navigation.navigate(reference, event, sourceRowId(source))}>{sourceName(source)}<small>{source.id} · {source.namespace}</small></a>
+        <button type="button" className="source-expand" aria-expanded={navigation.expanded.includes(reference)} aria-label={`${t.expandSource}: ${sourceName(source)} · ${source.id}`} onClick={() => navigation.toggle(reference)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
+        <a href={navigation.href(reference)} aria-current={navigation.selected === reference ? "page" : undefined} onClick={event => navigation.navigate(reference, event, sourceRowId(source))}>{sourceName(source)}{sources.filter(candidate => sourceName(candidate) === sourceName(source)).length > 1 && <small>{source.id} · {source.namespace}</small>}</a>
         {navigation.expanded.includes(reference) && <a className="source-branch-info" href={navigation.href(reference)} onClick={event => navigation.navigate(reference, event, sourceRowId(source))}>{t.basicInformation} · {source.id}</a>}
       </div>;
     })}</div>
@@ -97,6 +97,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
   const previous = !!snapshot && state.kind !== "success";
   const issue = state.kind === "unconfigured" || state.kind === "failure" || state.kind === "unknown" || state.kind === "denied"
     ? t.issues[state.kind] : undefined;
+  const showSourceDetail = navigation.selected !== null && !(state.kind === "loading" && !snapshot);
   const canReload = (!!loader || nativeRefresh) && state.kind !== "unconfigured";
 
   return <>
@@ -108,15 +109,21 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
       <div className="sidebar-footer"><span className="brain-dot" aria-hidden="true" />{t.myBrain}</div>
     </aside>
     <div className="workspace">
-      <header className="context-bar"><span>{t.myBrain}</span><span aria-hidden="true">/</span><span aria-current="page">{t.sources}</span></header>
+      <header className="context-bar"><span>{t.myBrain}</span><span aria-hidden="true">/</span><span aria-current={navigation.selected === null ? "page" : undefined}>{t.sources}</span>{selectedSource && <><span aria-hidden="true">/</span><span aria-current="page">{sourceName(selectedSource)}</span></>}</header>
       <main id="main" tabIndex={-1} className="min-w-0">
         <div className="desk" onSubmitCapture={event => {
           const input = (event.target as HTMLFormElement).querySelector<HTMLInputElement>('input[name="sourceReturn"]');
           if (input) input.value = `/${navigation.href(navigation.selected)}`;
         }}>
-          <div className="page-heading"><p className="eyebrow">{t.myBrain}</p><h1>{t.sources}</h1><p>{t.description}</p></div>
-          <div className="source-toolbar">
-            <span className="section-label" id="source-list-title" tabIndex={-1}>{t.sourceList}</span>
+          <div className={`page-heading${showSourceDetail ? " source-heading" : ""}`}>
+            {showSourceDetail ? <>
+              <a className="return-list" href={navigation.href(null)} onClick={event => navigation.navigate(null, event)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>{t.returnToList}</a>
+              <h1 id="source-detail-title" tabIndex={-1}>{selectedSource ? sourceName(selectedSource) : t.selectionUnavailable}</h1>
+              {selectedSource && <p>{t.sourceDescription}</p>}
+            </> : <><h1>{t.sources}</h1><p>{t.description}</p></>}
+          </div>
+          <div className="workspace-controls"><div className="source-toolbar">
+            <span className={`section-label${navigation.selected !== null ? " sr-only" : ""}`} id="source-list-title" tabIndex={-1}>{t.sourceList}</span>
             <div className="toolbar-actions">
               {languageControl}
               {canReload && <form action="/" method="get" onSubmit={event => { if (loader) { event.preventDefault(); void refresh(); } }}>
@@ -126,7 +133,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
               <button type="button" ref={guideTrigger} onClick={() => guide.current?.showModal()}>{t.guide}</button>
             </div>
           </div>
-          {timeZoneControl}
+          {timeZoneControl}</div>
           {connectionControl}
           <div className="state-announcement" role="status" aria-live="polite" aria-atomic="true">
             {state.kind === "loading" && <p>{t.loading}</p>}
@@ -137,22 +144,43 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             {previous && <p className="previous-notice">{t.previous} · {t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</p>}
             {state.kind === "success" && snapshot?.sources.length === 0 && <div className="empty-board"><h2>{t.emptyTitle}</h2><p>{t.emptyDescription}</p></div>}
           </div>
-          {navigation.selected !== null && !(state.kind === "loading" && !snapshot) && <section className="source-detail" aria-labelledby="source-detail-title">
-            <a className="return-list" href={navigation.href(null)} onClick={event => navigation.navigate(null, event)}>{t.returnToList}</a>
-            <h2 id="source-detail-title" tabIndex={-1}>{selectedSource ? sourceName(selectedSource) : t.selectionUnavailable}</h2>
-            {selectedSource ? <><h3>{t.basicInformation}</h3><dl className="source-fields">
-              <div><dt>{t.sourceId}</dt><dd>{selectedSource.id}</dd></div>
-              <div><dt>{t.connectionIdentity}</dt><dd>{selectedSource.namespace}</dd></div>
-              <div><dt>{t.folder}</dt><dd>{selectedSource.connection.folder ?? t.notProvided}</dd></div>
-              <div><dt>{t.repository}</dt><dd>{selectedSource.connection.repository ?? t.notProvided}</dd></div>
-              <div><dt>{t.federated}</dt><dd>{selectedSource.federated ? t.yes : t.no}</dd></div>
-              <div><dt>{t.strategy}</dt><dd>{selectedSource.strategy ?? t.notProvided}</dd></div>
-              <div><dt>{t.pageCount}</dt><dd>{new Intl.NumberFormat(locale).format(selectedSource.pageCount)}</dd></div>
-              <div><dt>{t.syncResult}</dt><dd>{t.syncUnknown}</dd></div>
-              <div><dt>{t.lastSyncedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.lastSyncedAt} />{selectedSource.lastSyncedAt !== null && <code>{selectedSource.lastSyncedAt}</code>}</dd></div>
-              <div><dt>{t.checkedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.checkedAt} />{selectedSource.checkedAt !== null && <code>{selectedSource.checkedAt}</code>}</dd></div>
-              <div><dt>{t.connectorProvider}</dt><dd>{t.notProvided}</dd></div>
-            </dl><PageList key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={navigation.href(navigation.selected).slice(1)} locale={locale} loadPages={loadPages} /></> : <p>{t.selectionUnavailableReason}</p>}
+          {showSourceDetail && <section className="source-detail" aria-labelledby="source-detail-title">
+            {selectedSource ? <><div className="source-fields">
+              <div className="source-cards">
+                <section className="source-card source-sync" aria-labelledby="source-sync-title">
+                  <h2 id="source-sync-title">{t.sourceSync}</h2>
+                  <span className="sync-status unknown"><span aria-hidden="true" className="status-dot" />{t.syncUnknown}</span>
+                  <p>{t.syncExplanation}</p>
+                  <dl className="source-times">
+                    <div><dt>{t.lastSyncedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.lastSyncedAt} /></dd></div>
+                    <div><dt>{t.checkedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.checkedAt} /></dd></div>
+                  </dl>
+                </section>
+                <section className="source-card" aria-labelledby="source-connection-title">
+                  <h2 id="source-connection-title">{t.connection}</h2>
+                  <dl className="source-connections">
+                    <div><dt>{t.folder}</dt><dd>{selectedSource.connection.folder ?? t.notProvided}</dd></div>
+                    <div><dt>{t.repository}</dt><dd>{selectedSource.connection.repository ?? t.notProvided}</dd></div>
+                  </dl>
+                  <details className="source-metadata"><summary><h3>{t.basicInformation}</h3></summary><dl className="source-connections">
+                    <div><dt>{t.sourceId}</dt><dd>{selectedSource.id}</dd></div>
+                    <div><dt>{t.connectionIdentity}</dt><dd>{selectedSource.namespace}</dd></div>
+                    <div><dt>{t.federated}</dt><dd>{selectedSource.federated ? t.yes : t.no}</dd></div>
+                    <div><dt>{t.strategy}</dt><dd>{selectedSource.strategy ?? t.notProvided}</dd></div>
+                    <div><dt>{t.pageCount}</dt><dd>{new Intl.NumberFormat(locale).format(selectedSource.pageCount)}</dd></div>
+                    {selectedSource.lastSyncedAt !== null && <div><dt>{t.lastSyncedAt}</dt><dd><code>{selectedSource.lastSyncedAt}</code></dd></div>}
+                    {selectedSource.checkedAt !== null && <div><dt>{t.checkedAt}</dt><dd><code>{selectedSource.checkedAt}</code></dd></div>}
+                  </dl></details>
+                </section>
+                <section className="source-card" aria-labelledby="source-service-title">
+                  <h2 id="source-service-title">{t.ingestionService}</h2>
+                  <p>{t.serviceNotProvided}</p><p className="muted">{t.serviceUnknown}</p>
+                  <dl className="source-connections"><div><dt>{t.connectorProvider}</dt><dd>{t.notProvided}</dd></div></dl>
+                </section>
+              </div>
+            </div><PageList key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={navigation.href(navigation.selected).slice(1)} locale={locale} loadPages={loadPages} />
+              <details className="source-help"><summary>{t.syncHelp}</summary><div><p>{t.guideAction}</p></div></details>
+            </> : <p>{t.selectionUnavailableReason}</p>}
           </section>}
           <div className="table-board" hidden={navigation.selected !== null} aria-busy={state.kind === "loading"}>
             <div className="table-scroll" role="region" aria-label={t.sourceList} tabIndex={0}>
@@ -160,8 +188,8 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                 <caption className="sr-only">{t.tableCaption}</caption>
                 <thead><tr><th scope="col">{t.source}</th><th scope="col">{t.connection}</th><th scope="col">{t.syncResult}</th><th scope="col">{t.lastSyncedAt}</th><th scope="col">{t.checkedAt}</th></tr></thead>
                 <tbody>{snapshot?.sources.map(source => <tr key={sourceReference(source)}>
-                  <th scope="row"><a id={sourceRowId(source)} href={navigation.href(sourceReference(source))} onClick={event => navigation.navigate(sourceReference(source), event, sourceRowId(source))}>{sourceName(source)}</a></th>
-                  <td><dl className="connection-values"><div><dt>{t.sourceId}</dt><dd>{source.id}</dd></div><div><dt>{t.connectionIdentity}</dt><dd>{source.namespace}</dd></div><div><dt>{t.folder}</dt><dd>{source.connection.folder ?? t.notProvided}</dd></div><div><dt>{t.repository}</dt><dd>{source.connection.repository ?? t.notProvided}</dd></div></dl></td>
+                  <th scope="row"><a id={sourceRowId(source)} href={navigation.href(sourceReference(source))} onClick={event => navigation.navigate(sourceReference(source), event, sourceRowId(source))}>{sourceName(source)}</a>{snapshot.sources.filter(candidate => sourceName(candidate) === sourceName(source)).length > 1 && <small className="source-disambiguation">{source.id} · {source.namespace}</small>}<details className="source-identity"><summary aria-label={`${t.basicInformation}: ${sourceName(source)} · ${source.id}`}>{t.basicInformation}</summary><dl className="connection-values"><div><dt>{t.sourceId}</dt><dd>{source.id}</dd></div><div><dt>{t.connectionIdentity}</dt><dd>{source.namespace}</dd></div></dl></details></th>
+                  <td><dl className="connection-values"><div><dt>{t.folder}</dt><dd>{source.connection.folder ?? t.notProvided}</dd></div><div><dt>{t.repository}</dt><dd>{source.connection.repository ?? t.notProvided}</dd></div></dl></td>
                   <td><span className={`sync-status ${source.sync.status}`}><span aria-hidden="true" className="status-dot" />{source.sync.label || t.syncUnknown}</span></td>
                   <td><Timestamp locale={locale} value={source.lastSyncedAt} /></td><td><Timestamp locale={locale} value={source.checkedAt} /></td>
                 </tr>)}</tbody>
