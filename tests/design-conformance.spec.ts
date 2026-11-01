@@ -5,6 +5,98 @@ import { sourceSnapshot } from './fixtures/source-data';
 import AxeBuilder from '@axe-core/playwright';
 import { fixtureOrigin } from './support/ui';
 
+test('source group disclosure preserves selection and independent source expansion', async ({ page }) => {
+  const t = sourceMessages.en;
+  await page.goto(`${fixtureOrigin}/?scenario=success&locale=en`);
+  const nav = page.locator('.desktop-navigation');
+  const source = sourceSnapshot.sources[0];
+  const link = nav.getByRole('link', { name: source.name, exact: true });
+  await link.click();
+  await expect(link).toHaveAttribute('aria-current', 'page');
+  const expand = nav.getByRole('button', { name: `${t.expandSource}: ${source.name} · ${source.id}`, exact: true });
+  await expand.click();
+  const expandedUrl = page.url();
+  const group = nav.getByRole('button', { name: t.toggleSources, exact: true });
+  const desktopTreeId = await group.getAttribute('aria-controls');
+  await group.focus();
+  await page.keyboard.press('Enter');
+  await expect(group).toHaveAttribute('aria-expanded', 'false');
+  await expect(link).toBeHidden();
+  expect(page.url()).toBe(expandedUrl);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: t.returnToList, exact: true })).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 900 });
+  const mobile = page.locator('.mobile-navigation');
+  await mobile.locator('summary').click();
+  const mobileGroup = mobile.getByRole('button', { name: t.toggleSources, exact: true });
+  await expect(mobileGroup).toHaveAttribute('aria-expanded', 'false');
+  await expect(mobile.getByRole('link', { name: source.name, exact: true })).toBeHidden();
+  const controlledId = await mobileGroup.getAttribute('aria-controls');
+  expect(controlledId).toBeTruthy();
+  expect(controlledId).not.toBe(desktopTreeId);
+  expect(await mobile.locator('.source-tree').getAttribute('id')).toBe(controlledId);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(group).toHaveAttribute('aria-expanded', 'false');
+  await group.focus();
+  await page.keyboard.press('Space');
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('aria-current', 'page');
+  await expect(expand).toHaveAttribute('aria-expanded', 'true');
+  await expect(nav.getByRole('link', { name: `${t.basicInformation} · ${source.id}`, exact: true })).toBeVisible();
+  expect(page.url()).toBe(expandedUrl);
+  await nav.getByRole('link', { name: t.sources, exact: true }).click();
+  await expect(page.getByRole('heading', { name: t.sources, exact: true })).toBeVisible();
+  const current = nav.getByRole('link', { name: t.sources, exact: true });
+  await current.hover();
+  await expect(current).toHaveCSS('background-color', 'rgb(236, 239, 253)');
+});
+
+for (const locale of ['en', 'ko'] as const) {
+  test(`${locale} sidebar preserves its design and reflows an enlarged mobile tree`, async ({ page }) => {
+    const t = sourceMessages[locale];
+    await page.goto(`${fixtureOrigin}/?scenario=success&locale=${locale}`);
+    const sidebar = page.getByRole('complementary', { name: t.appNavigation });
+    const nav = sidebar.locator('.desktop-navigation');
+    expect((await sidebar.boundingBox())!.width).toBe(184);
+    expect((await sidebar.locator('.brand').boundingBox())!.height).toBe(52);
+    expect((await sidebar.locator('.brand-mark').boundingBox())!.width).toBe(18);
+    const group = nav.getByRole('button', { name: locale === 'en' ? 'Expand or collapse source names' : '소스 이름 펼치기 또는 접기', exact: true });
+    expect((await group.boundingBox())!.height).toBe(32);
+    await expect(nav.getByRole('group', { name: t.exploreMemory })).toBeVisible();
+    const icons = nav.locator('.nav-item > svg');
+    await expect(icons).toHaveCount(8);
+    for (const icon of await icons.all()) expect((await icon.boundingBox())!.width).toBe(16);
+    const summary = nav.locator('.summary-item');
+    const memory = nav.locator('.memory-navigation');
+    expect((await summary.boundingBox())!.y - ((await memory.boundingBox())!.y + (await memory.boundingBox())!.height)).toBe(8);
+
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    const mobile = sidebar.locator('.mobile-navigation');
+    await mobile.locator('summary').click();
+    const toggle = mobile.getByRole('button', { name: t.toggleSources, exact: true });
+    expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const source = sourceSnapshot.sources[0];
+    await mobile.getByRole('button', { name: `${t.expandSource}: ${source.name} · ${source.id}`, exact: true }).click();
+    const information = mobile.getByRole('link', { name: `${t.basicInformation} · ${source.id}`, exact: true });
+    await expect(information).toBeVisible();
+    await information.focus();
+    await expect(information).toBeFocused();
+    for (const button of await mobile.getByRole('button').all()) {
+      const box = (await button.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+    for (const link of await mobile.getByRole('link').all()) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    await toggle.click();
+    await expect(mobile.getByRole('link', { name: sourceSnapshot.sources[0].name, exact: true })).toBeHidden();
+    await toggle.click();
+    await expect(mobile.getByRole('link', { name: sourceSnapshot.sources[0].name, exact: true })).toBeVisible();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  });
+}
+
 for (const locale of ['en', 'ko'] as const) {
   test(`${locale} selected Source preserves readable metadata and the Page board hierarchy`, async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-10-31T12:00:00Z'));
@@ -88,6 +180,11 @@ test('desktop coarse-pointer filter keeps touch targets, active styling and an a
   try {
     const page = await context.newPage();
     await page.goto(`${fixtureOrigin}/?${new URLSearchParams({ scenario: 'pages-seeded', locale: 'en', timeZone: 'UTC', source: sourceReference(sourceSnapshot.sources[0]) })}`);
+    const sidebar = page.locator('.desktop-navigation');
+    await expect(sidebar).toBeVisible();
+    await expect(page.locator('.mobile-navigation')).toBeHidden();
+    const sourcesToggle = sidebar.getByRole('button', { name: sourceMessages.en.toggleSources, exact: true });
+    expect((await sourcesToggle.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     const trigger = page.getByRole('button', { name: `${pageMessages.en.filter}: ${pageMessages.en.all}`, exact: true });
     expect((await trigger.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await trigger.click();

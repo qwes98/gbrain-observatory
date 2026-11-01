@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { defaultLocale, formatResultCount, sourceMessages, type Locale } from "../i18n/messages";
 import { sourceReference, validSourceReference, type Source, type SourceListResult, type SourceListState } from "../contracts/sources";
 import { formatInstant } from "../i18n/time-zone";
@@ -37,26 +37,50 @@ function Timestamp({ value, locale }: { value: string | null; locale: Locale }) 
 
 function sourceName(source: Source) { return source.name.trim() ? source.name : source.id; }
 
-function Navigation({ locale, sources, navigation }: { locale: Locale; sources: Source[]; navigation: ReturnType<typeof useSourceNavigation> }) {
+function NavigationIcon({ name }: { name: "sources" | "page" | "recent" | "search" | "memories" | "entities" | "relations" | "loops" | "summary" | "chevron" }) {
+  const shapes = {
+    sources: <path d="M3 5h7l2 2h9v13H3z" />,
+    page: <path d="M6 3h8l4 4v14H6zM14 3v5h5M9 12h6M9 16h6" />,
+    recent: <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></>,
+    search: <><circle cx="10" cy="10" r="6" /><path d="m15 15 5 5" /></>,
+    memories: <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />,
+    entities: <><circle cx="9" cy="8" r="3" /><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 3 5" /></>,
+    relations: <path d="m10 14 4-4M9 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M15 8l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" />,
+    loops: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="m8 12 3 3 5-6" /></>,
+    summary: <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" />,
+    chevron: <path d="m9 6 6 6-6 6" />,
+  };
+  return <svg className="navigation-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{shapes[name]}</svg>;
+}
+
+function Navigation({ locale, sources, navigation, sourcesOpen, toggleSources }: { locale: Locale; sources: Source[]; navigation: ReturnType<typeof useSourceNavigation>; sourcesOpen: boolean; toggleSources: () => void }) {
   const t = sourceMessages[locale];
+  const sourceTreeId = useId();
   return <nav aria-label={t.mainNavigation}>
-    <a className={`nav-item${navigation.selected === null ? " current" : ""}`} href={navigation.href(null)} onClick={event => navigation.navigate(null, event)} aria-current={navigation.selected === null ? "page" : undefined}><span aria-hidden="true">▤</span>{t.sources}</a>
-    <div className="source-tree">{sources.map(source => {
+    <div className="source-navigation-heading">
+      <a className={`nav-item${navigation.selected === null ? " current" : ""}`} href={navigation.href(null)} onClick={event => navigation.navigate(null, event)} aria-current={navigation.selected === null ? "page" : undefined}><NavigationIcon name="sources" /><span>{t.sources}</span></a>
+      {sources.length > 0 && <button type="button" className="source-expand" aria-expanded={sourcesOpen} aria-controls={sourceTreeId} aria-label={t.toggleSources} onClick={toggleSources}><NavigationIcon name="chevron" /></button>}
+    </div>
+    <div className="source-tree" id={sourceTreeId} hidden={!sourcesOpen || sources.length === 0}>{sources.map(source => {
       const reference = sourceReference(source);
       return <div key={reference} className="source-branch">
-        <button type="button" className="source-expand" aria-expanded={navigation.expanded.includes(reference)} aria-label={`${t.expandSource}: ${sourceName(source)} · ${source.id}`} onClick={() => navigation.toggle(reference)}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg></button>
-        <a href={navigation.href(reference)} aria-current={navigation.selected === reference ? "page" : undefined} onClick={event => navigation.navigate(reference, event, sourceRowId(source))}>{sourceName(source)}{sources.filter(candidate => sourceName(candidate) === sourceName(source)).length > 1 && <small>{source.id} · {source.namespace}</small>}</a>
+        <a className="source-navigation-link" href={navigation.href(reference)} aria-current={navigation.selected === reference ? "page" : undefined} onClick={event => navigation.navigate(reference, event, sourceRowId(source))}><NavigationIcon name="page" /><span>{sourceName(source)}{sources.filter(candidate => sourceName(candidate) === sourceName(source)).length > 1 && <small>{source.id} · {source.namespace}</small>}</span></a>
+        <button type="button" className="source-expand" aria-expanded={navigation.expanded.includes(reference)} aria-label={`${t.expandSource}: ${sourceName(source)} · ${source.id}`} onClick={() => navigation.toggle(reference)}><NavigationIcon name="chevron" /></button>
         {navigation.expanded.includes(reference) && <a className="source-branch-info" href={navigation.href(reference)} onClick={event => navigation.navigate(reference, event, sourceRowId(source))}>{t.basicInformation} · {source.id}</a>}
       </div>;
     })}</div>
-    <span className="nav-item unavailable"><span aria-hidden="true">◷</span>{t.recentInput}</span>
-    <span className="nav-item unavailable"><span aria-hidden="true">⌕</span>{t.search}</span>
-    <p className="nav-group">{t.exploreMemory}</p>
-    <span className="nav-item unavailable"><span aria-hidden="true">▧</span>{t.memories}</span>
-    <span className="nav-item unavailable"><span aria-hidden="true">♧</span>{t.entities}</span>
-    <span className="nav-item unavailable"><span aria-hidden="true">⇄</span>{t.relations}</span>
-    <span className="nav-item unavailable"><span aria-hidden="true">□</span>{t.openLoops}</span>
-    <span className="nav-item unavailable summary-item"><span aria-hidden="true">◈</span>{t.brainSummary}</span>
+    <span className="nav-item unavailable"><NavigationIcon name="recent" /><span>{t.recentInput}</span></span>
+    <span className="nav-item unavailable"><NavigationIcon name="search" /><span>{t.search}</span></span>
+    <div className="memory-navigation" role="group" aria-label={t.exploreMemory}>
+      <p className="nav-group">{t.exploreMemory}</p>
+      <div className="memory-navigation-items">
+        <span className="nav-item unavailable"><NavigationIcon name="memories" /><span>{t.memories}</span></span>
+        <span className="nav-item unavailable"><NavigationIcon name="entities" /><span>{t.entities}</span></span>
+        <span className="nav-item unavailable"><NavigationIcon name="relations" /><span>{t.relations}</span></span>
+        <span className="nav-item unavailable"><NavigationIcon name="loops" /><span>{t.openLoops}</span></span>
+      </div>
+    </div>
+    <span className="nav-item unavailable summary-item"><NavigationIcon name="summary" /><span>{t.brainSummary}</span></span>
     <p className="nav-note">{t.comingSoon}</p>
   </nav>;
 }
@@ -77,6 +101,8 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
   } : undefined);
   const { state, snapshot, refresh, authority } = useSourceList(initialState, loader);
   const navigation = useSourceNavigation(initialQuery);
+  const [sourcesOpen, setSourcesOpen] = useState(true);
+  const toggleSources = () => setSourcesOpen(open => !open);
   const selectedSource = navigation.selected !== null && validSourceReference(navigation.selected)
     ? snapshot?.sources.find(source => sourceReference(source) === navigation.selected) : undefined;
   const initialSelections = new URLSearchParams(initialQuery).getAll("source");
@@ -103,9 +129,9 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
   return <>
     <a className="skip-link" href="#main">{t.skipToMain}</a>
     <aside className="sidebar" aria-label={t.appNavigation}>
-      <div className="brand"><span className="brand-mark" aria-hidden="true">◎</span><strong>GBrain Observatory</strong></div>
-      <div className="desktop-navigation"><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} /></div>
-      <details className="mobile-navigation"><summary>{t.navigationMenu}</summary><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} /></details>
+      <div className="brand"><svg className="brand-mark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="12" rx="10" ry="4.6" transform="rotate(-28 12 12)" /><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" /><circle cx="20.2" cy="7.6" r="1.3" fill="currentColor" stroke="none" /></svg><strong>GBrain Observatory</strong></div>
+      <div className="desktop-navigation"><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} sourcesOpen={sourcesOpen} toggleSources={toggleSources} /></div>
+      <details className="mobile-navigation"><summary>{t.navigationMenu}</summary><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} sourcesOpen={sourcesOpen} toggleSources={toggleSources} /></details>
       <div className="sidebar-footer"><span className="brain-dot" aria-hidden="true" />{t.myBrain}</div>
     </aside>
     <div className="workspace">

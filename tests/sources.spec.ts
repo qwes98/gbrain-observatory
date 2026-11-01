@@ -457,7 +457,7 @@ test('all source names have an ID fallback without altering supplied name data',
 test('navigation hrefs and actionable child links preserve bounded independent expansion', async ({ page }) => {
   await fixture(page, 'many');
   const sidebar = page.locator('.desktop-navigation');
-  for (const button of await sidebar.getByRole('button').all()) await button.click();
+  for (const button of await sidebar.locator('.source-tree').getByRole('button').all()) await button.click();
   const url = new URL(page.url());
   expect(new URLSearchParams(url.searchParams.getAll("expanded").map(value => ["expanded", value])).toString().length).toBeLessThanOrEqual(760);
   expect(url.searchParams.getAll('expanded').length).toBeGreaterThan(1);
