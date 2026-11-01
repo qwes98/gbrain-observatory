@@ -187,9 +187,6 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .source-metadata summary { color: var(--secondary); font-size: .8125rem; }
 .source-metadata h3 { display: inline; font-size: inherit; font-weight: 500; }
 .source-metadata dl { margin-top: 8px; }
-.source-help { margin-top: 16px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
-.source-help summary { padding: 10px 20px; font-size: .8125rem; font-weight: 600; }
-.source-help > div { padding: 0 20px 16px; font-size: .875rem; color: var(--secondary); }
 .return-list, tbody th a { display: inline-block; min-height: 32px; padding-block: 5px; }
 .page-list { margin-top: 28px; min-width: 0; }
 .page-board { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
@@ -274,10 +271,26 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .source-disambiguation { display: block; font-size: .75rem; font-weight: 400; color: var(--secondary); }
 .page-filter-options button:focus-visible { outline-offset: -2px; }
 
-.reading-details { margin-top: 14px; font-size: .78125rem; color: var(--secondary); overflow-wrap: anywhere; }
-.reading-details > summary { width: fit-content; min-height: 32px; display: list-item; align-content: center; cursor: pointer; }
-.reading-details > div { padding-top: 8px; max-width: 90ch; }
-.reading-details p { margin: 0 0 10px; }
-@media (max-width: 700px), (pointer: coarse) {
-  .reading-details > summary { min-height: 44px; }
+.help-heading, .context-value, .connection-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.source-card .help-heading { margin-bottom: 12px; }
+.source-card .help-heading h2 { margin: 0; }
+.connection-actions { gap: 8px; }
+.connection-actions form { margin: 0; }
+.context-help-trigger, .context-help-close { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: 24px; width: 24px; min-height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--tertiary); vertical-align: middle; }
+.context-help-trigger svg, .context-help-close svg { flex: none; }
+.context-help-trigger:hover, .context-help-close:hover { background: #eef0f4; color: var(--ink); }
+.context-help { position: fixed; inset: 0; margin: auto; width: min(320px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); box-shadow: 0 8px 24px rgb(23 27 43 / .16); font-size: .875rem; line-height: 1.6; font-weight: 400; white-space: normal; overflow-wrap: anywhere; overflow-y: auto; overscroll-behavior: contain; text-align: left; }
+.context-help-header { position: sticky; top: -16px; z-index: 1; background: var(--paper); display: flex; align-items: start; justify-content: space-between; gap: 12px; margin: -16px -16px 0; padding: 16px 16px 10px; }
+.context-help-header h3 { margin: 0; font-size: .875rem; font-weight: 650; line-height: 1.6; color: var(--ink); }
+.context-help-body p, .connection-panel .context-help-body p { margin: 0 0 10px; font-size: inherit; line-height: inherit; }
+.context-help-body p:last-child { margin-bottom: 0; }
+.context-help time { white-space: normal; }
+.context-help-body ul { padding-left: 20px; margin: 0; }
+@supports (position-area: bottom) {
+  .context-help { inset: auto; position-anchor: auto; position-area: bottom span-right; justify-self: start; margin: 12px; position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline, --context-help-center; }
+}
+@position-try --context-help-center { position-area: none; inset: 12px; margin: auto; justify-self: auto; align-self: auto; }
+.context-help[data-positioned="true"] { position-area: none; position-try-fallbacks: none; position-anchor: none; justify-self: auto; align-self: auto; inset: auto; margin: 0; top: var(--help-top); left: var(--help-left); }
+@media (max-width: 760px), (any-pointer: coarse) {
+  .context-help-trigger, .context-help-close { width: 44px; min-width: 44px; min-height: 44px; }
 }

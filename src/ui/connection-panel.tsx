@@ -5,6 +5,7 @@ import type { ConnectionResult } from "../contracts/connection";
 import { sourceMessages, type Locale } from "../i18n/messages";
 import { formatInstant } from "../i18n/time-zone";
 import { useTimeZone } from "./time-zone-provider";
+import { ContextHelp } from "./context-help";
 
 type ConnectionPanelProps = {
   locale: Locale;
@@ -38,7 +39,7 @@ class ConnectionBoundary extends Component<ConnectionPanelProps, BoundaryState> 
     const content = this.state.failed ? <section className="connection-panel" aria-labelledby="connection-title">
       <h2 className="sr-only" id="connection-title">{t.title}</h2>
       <div role="status" aria-live="polite"><p>{t.causes.failed.reason}</p><p>{t.causes.failed.action}</p></div>
-      <button type="button" onClick={() => this.setState({ failed: false, retry: true })}>{t.check}</button>
+      <div className="connection-actions"><button type="button" onClick={() => this.setState({ failed: false, retry: true })}>{t.check}</button><ContextHelp locale={this.props.locale} label={t.details} title={t.title}><p>{t.scope}</p><p>{t.limitation}</p></ContextHelp></div>
     </section> : <ConnectionForm {...this.props} retry={this.state.retry} />;
     return <div ref={this.container}>{content}</div>;
   }
@@ -63,10 +64,10 @@ function ConnectionForm({ locale, initial, action, retry }: ConnectionPanelProps
   const issue = !pending && result && result.kind !== "success" ? t.causes[result.cause] : undefined;
   return <section className="connection-panel" aria-labelledby="connection-title">
     <h2 className="sr-only" id="connection-title">{t.title}</h2>
-    <form ref={form} aria-busy={pending} action={formAction} onSubmit={event => {
+    <div className="connection-actions"><form ref={form} aria-busy={pending} action={formAction} onSubmit={event => {
       if (pending || submitted.current) event.preventDefault();
       else submitted.current = true;
-    }}><button type="submit" aria-disabled={pending}>{pending ? t.pending : t.check}</button></form>
+    }}><button type="submit" aria-disabled={pending}>{pending ? t.pending : t.check}</button></form><ContextHelp locale={locale} label={t.details} title={t.title}><p>{t.scope}</p><p>{t.limitation}</p></ContextHelp></div>
     <div role="status" aria-live="polite" aria-atomic="true">
       {pending && <p>{t.pending}</p>}
       {observation && <>
@@ -77,6 +78,5 @@ function ConnectionForm({ locale, initial, action, retry }: ConnectionPanelProps
       </>}
       {issue && <><p>{issue.reason}</p><p>{issue.action}</p></>}
     </div>
-    <details className="reading-details"><summary>{t.details}</summary><div><p>{t.scope}</p><p>{t.limitation}</p></div></details>
   </section>;
 }

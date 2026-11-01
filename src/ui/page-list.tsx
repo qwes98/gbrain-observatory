@@ -5,6 +5,7 @@ import { pageReference, type PageFieldAvailability, type PageFilter, type PageLi
 import { pageMessages, formatResultCount, type Locale } from "../i18n/messages";
 import { calendarDay, formatInstant, matchesCalendarFilter } from "../i18n/time-zone";
 import { useTimeZone } from "./time-zone-provider";
+import { ContextHelp } from "./context-help";
 import { usePageList, type PageLoader } from "./use-page-list";
 
 const subscribeHydration = () => () => {};
@@ -117,7 +118,7 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
     : state.kind === "unknown" ? t.unsupported : state.kind === "unconfigured" ? t.unconfigured : null;
   return <section className="page-list" aria-labelledby="pages-title" aria-busy={state.kind === "loading"}>
     <div className="page-board">
-    <div className="pages-toolbar"><h2 id="pages-title">{t.title}</h2><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} />
+    <div className="pages-toolbar"><h2 id="pages-title">{t.title}</h2><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} /><ContextHelp locale={locale} label={t.dateHelp} title={t.added}><p>{t.meaning}</p><p>{t.coverage}</p><p>{t.offsets}</p></ContextHelp>
       {canRead && <form className="page-refresh" action="/" method="get" onSubmit={event => { if (enhanced) { event.preventDefault(); refresh(); } }}>
         {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "added").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
         <button type="submit" aria-disabled={state.kind === "loading"}>{t.refresh}</button>
@@ -130,22 +131,22 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
       {snapshot && rows.length === 0 && <p className="sr-only">{t.empty}</p>}{state.kind === "idle" && !snapshot && <p>{t.pending}</p>}
     </div>
     {snapshot && <div className="page-table"><div className="table-scroll" role="region" aria-label={t.caption} tabIndex={0}>
-      <table><colgroup><col /><col className="page-kind-column" /><col className="page-time-column" /><col className="page-time-column" /></colgroup><caption className="sr-only">{t.caption}</caption><thead><tr><th scope="col">{t.titleColumn}</th><th scope="col">{t.kind}</th><th scope="col">{t.added}</th><th scope="col">{t.changed}</th></tr></thead>
+      <table><colgroup><col /><col className="page-kind-column" /><col className="page-time-column" /><col className="page-time-column" /></colgroup><caption className="sr-only">{t.caption}</caption><thead><tr><th scope="col">{t.titleColumn}</th><th scope="col">{t.kind}</th><th scope="col" aria-label={t.added}>{t.added}</th><th scope="col">{t.changed}</th></tr></thead>
         <tbody>{rows.map(page => <tr key={pageReference(page)}><th scope="row">{page.title.trim() ? page.title : page.slug}
           {rows.filter(candidate => (candidate.title.trim() ? candidate.title : candidate.slug) === (page.title.trim() ? page.title : page.slug)).length > 1 && <small className="page-slug">{page.slug}</small>}
           <details className="page-observation"><summary aria-label={`${t.pageInformation}: ${page.title.trim() ? page.title : page.slug} · ${page.slug}`}>{t.pageInformation}</summary><small className="page-slug">{page.slug}</small>{page.detailObservation && <><span>{t.detailObservation}</span><Interval value={page.detailObservation} locale={locale} /></>}</details></th>
           <td>{page.kind}</td><td><PageTime value={page.createdAt} availability={page.creationAvailability} locale={locale} /></td><td><PageTime value={page.updatedAt} availability={page.modificationAvailability} locale={locale} /></td></tr>)}</tbody>
-      </table></div>{rows.length === 0 && <p className="page-empty">{t.empty}</p>}<div className="table-footer"><span>{filter !== "all" && <>{t.matching}: {formatResultCount(locale, rows.length)} · </>}{t.loaded}: {formatResultCount(locale, snapshot.pages.length)}</span><span>{zone}</span></div></div>}
+      </table></div>{rows.length === 0 && <p className="page-empty">{t.empty}</p>}<div className="table-footer"><div className="context-value"><span>{filter !== "all" && <>{t.matching}: {formatResultCount(locale, rows.length)} · </>}{t.loaded}: {formatResultCount(locale, snapshot.pages.length)}</span><ContextHelp locale={locale} label={t.rangeHelp} title={t.rangeTitle}>
+        <p>{t.coverage}</p><p>{t.offsets}</p>
+        <p>{t.listObservation}: <Interval value={snapshot.listObservation} locale={locale} /></p>
+        <p>{t.observation}: <Interval value={snapshot.observation} locale={locale} /></p>
+      </ContextHelp></div><span>{zone}</span></div></div>}
     </div>
     {snapshot && <>
       {excludesUnknownDates && <p className="scope-note">{t.unknownDatesExcluded}</p>}
       <p className="scope-note">{snapshot.range === "cap" ? t.cap : snapshot.range === "observed-end" ? t.end : t.range}</p>
       {hadMore && canRead && enhanced && <button className="page-more" type="button" aria-disabled={state.kind === "loading" || snapshot.range !== "more"} onClick={more}>{t.more}</button>}
     </>}
-    <details className="reading-details"><summary>{t.readingDetails}</summary><div>
-      {snapshot && <><p>{t.listObservation}: <Interval value={snapshot.listObservation} locale={locale} /></p>
-        <p>{t.observation}: <Interval value={snapshot.observation} locale={locale} /></p></>}
-      <p>{t.meaning}</p><p>{t.coverage}</p><p>{t.offsets}</p>
-    </div></details>
+
   </section>;
 }

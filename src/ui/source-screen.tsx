@@ -8,6 +8,7 @@ import { useTimeZone } from "./time-zone-provider";
 import { useSourceList } from "./use-source-list";
 import { sourceRowId, useSourceNavigation } from "./use-source-navigation";
 import { PageList } from "./page-list";
+import { ContextHelp } from "./context-help";
 import type { PageListResult } from "../contracts/pages";
 import type { PageLoader } from "./use-page-list";
 
@@ -173,7 +174,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             {selectedSource ? <><div className="source-fields">
               <div className="source-cards">
                 <section className="source-card source-sync" aria-labelledby="source-sync-title">
-                  <h2 id="source-sync-title">{t.sourceSync}</h2>
+                  <div className="help-heading"><h2 id="source-sync-title">{t.sourceSync}</h2><ContextHelp locale={locale} label={t.syncHelp} title={t.sourceSync}><p>{t.scopeNote}</p><p>{t.guideAction}</p></ContextHelp></div>
                   <span className="sync-status unknown"><span aria-hidden="true" className="status-dot" />{t.syncUnknown}</span>
                   <dl className="source-times">
                     <div><dt>{t.lastSyncedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.lastSyncedAt} /></dd></div>
@@ -202,14 +203,13 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                 </section>
               </div>
             </div><PageList key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={navigation.href(navigation.selected).slice(1)} locale={locale} loadPages={loadPages} />
-              <details className="source-help"><summary>{t.syncHelp}</summary><div><p>{t.scopeNote}</p><p>{t.guideAction}</p></div></details>
             </> : <p>{t.selectionUnavailableReason}</p>}
           </section>}
           <div className="table-board" hidden={navigation.selected !== null} aria-busy={state.kind === "loading"}>
             <div className="table-scroll" role="region" aria-label={t.sourceList} tabIndex={0}>
               <table>
                 <caption className="sr-only">{t.tableCaption}</caption>
-                <thead><tr><th scope="col">{t.source}</th><th scope="col">{t.connection}</th><th scope="col">{t.syncResult}</th><th scope="col">{t.lastSyncedAt}</th><th scope="col">{t.checkedAt}</th></tr></thead>
+                <thead><tr><th scope="col">{t.source}</th><th scope="col">{t.connection}</th><th scope="col">{t.syncResult}</th><th scope="col" aria-label={t.lastSyncedAt}>{t.lastSyncedAt} <ContextHelp locale={locale} label={t.syncHelp} title={t.sourceSync}><p>{t.scopeNote}</p></ContextHelp></th><th scope="col">{t.checkedAt}</th></tr></thead>
                 <tbody>{snapshot?.sources.map(source => <tr key={sourceReference(source)}>
                   <th scope="row"><a id={sourceRowId(source)} href={navigation.href(sourceReference(source))} onClick={event => navigation.navigate(sourceReference(source), event, sourceRowId(source))}>{sourceName(source)}</a>{snapshot.sources.filter(candidate => sourceName(candidate) === sourceName(source)).length > 1 && <small className="source-disambiguation">{source.id} · {source.namespace}</small>}<details className="source-identity"><summary aria-label={`${t.basicInformation}: ${sourceName(source)} · ${source.id}`}>{t.basicInformation}</summary><dl className="connection-values"><div><dt>{t.sourceId}</dt><dd>{source.id}</dd></div><div><dt>{t.connectionIdentity}</dt><dd>{source.namespace}</dd></div></dl></details></th>
                   <td><dl className="connection-values"><div><dt>{t.folder}</dt><dd>{source.connection.folder ?? t.notProvided}</dd></div><div><dt>{t.repository}</dt><dd>{source.connection.repository ?? t.notProvided}</dd></div></dl></td>
@@ -218,12 +218,8 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                 </tr>)}</tbody>
               </table>
             </div>
-            <div className="table-footer">{snapshot && <span>{formatResultCount(locale, snapshot.sources.length)}</span>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
+            <div className="table-footer">{snapshot && <div className="context-value"><span>{formatResultCount(locale, snapshot.sources.length)} · {t.coverageSummary}</span><ContextHelp locale={locale} label={t.sourceScopeHelp} title={t.sources}><p>{t.coverageUnknown}</p></ContextHelp></div>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
           </div>
-          {navigation.selected === null && snapshot && <>
-            <p className="scope-note">{t.coverageUnknown}</p>
-            <details className="reading-details source-reading-details"><summary>{t.readingDetails}</summary><div><p>{t.scopeNote}</p></div></details>
-          </>}
         </div>
       </main>
     </div>

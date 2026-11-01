@@ -52,7 +52,7 @@ test('success renders exactly supplied rows with five semantic headers and indep
   await expect(beta.getByRole('cell').nth(3)).toHaveText(t.notProvided);
   await expect(gamma.getByRole('cell').nth(2)).toHaveText(t.notProvided);
   await expect(gamma.getByRole('cell').nth(3).locator('time')).toHaveAttribute('datetime', '2026-10-27T02:58:00.000Z');
-  await expect(page.locator('.table-footer').getByText(formatResultCount(behaviorLocale, 3), { exact: true })).toBeVisible();
+  await expect(page.locator('.table-footer .context-value > span').filter({ hasText: `${formatResultCount(behaviorLocale, 3)} · ${t.coverageSummary}` })).toBeVisible();
   await expect(page.locator('a[href="#"], a[href="javascript:void(0)"]')).toHaveCount(0);
 });
 
@@ -60,7 +60,7 @@ test('empty success is distinct from inability to query', async ({ page }) => {
   await fixture(page, 'empty');
   await expect(page.getByText(t.emptyTitle, { exact: true })).toBeVisible();
   await expect(page.getByRole('table').locator('tbody tr')).toHaveCount(0);
-  await expect(page.locator('.table-footer').getByText(formatResultCount(behaviorLocale, 0), { exact: true })).toBeVisible();
+  await expect(page.locator('.table-footer .context-value > span').filter({ hasText: `${formatResultCount(behaviorLocale, 0)} · ${t.coverageSummary}` })).toBeVisible();
 });
 
 test('unconfigured reason provides guidance without a nonfunctional retry', async ({ page }) => {

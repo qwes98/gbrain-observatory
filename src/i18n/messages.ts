@@ -60,6 +60,7 @@ const en = {
   comingSoon: "Other views are coming soon.",
   skipToMain: "Skip to main content",
   description: "Inspect available source connections and the information GBrain provides.",
+  coverageSummary: "Active sources · total unknown",
   coverageUnknown: "Available active sources only; total coverage is unknown.",
   sourceDescription: "A source groups stored Pages for inspection.",
   sourceSync: "Source synchronization",
@@ -109,7 +110,7 @@ const en = {
   notProvided: "Not provided",
   invalidTime: "Time could not be verified",
   listPending: "The list will appear after sources have been checked.",
-  readingDetails: "Dates and source scope",
+  sourceScopeHelp: "Source scope help",
   scopeNote: "Last synchronized is the provided synchronization timestamp; checked at is when this information was read. A timestamp does not establish synchronization success or whether later changes are included.",
   guide: "Connection help",
   close: "Close",
@@ -196,6 +197,7 @@ const ko: typeof en = {
   comingSoon: "다른 화면은 준비 중이에요.",
   skipToMain: "본문으로 건너뛰기",
   description: "현재 볼 수 있는 소스의 연결과 GBrain에서 제공한 정보를 확인해요.",
+  coverageSummary: "활성 소스 · 전체 범위 미확인",
   coverageUnknown: "볼 수 있는 활성 소스만 표시해요. 전체 범위는 알 수 없어요.",
   sourceDescription: "저장된 페이지를 묶어 보는 소스예요.",
   sourceSync: "소스 동기화",
@@ -245,7 +247,7 @@ const ko: typeof en = {
   notProvided: "제공되지 않음",
   invalidTime: "시각을 확인할 수 없어요",
   listPending: "소스를 확인한 뒤 목록이 표시돼요.",
-  readingDetails: "시각과 소스 범위",
+  sourceScopeHelp: "소스 범위 도움말",
   scopeNote: "마지막 동기화는 제공된 동기화 시각이고, 확인 시각은 이 정보를 조회한 시각이에요. 시각만으로 동기화 성공이나 이후 변경의 반영 여부를 알 수는 없어요.",
   guide: "연결 안내",
   close: "닫기",
@@ -302,7 +304,8 @@ const pagesEn = {
   coverage: "Filters and counts describe only the loaded range. Unknown creation dates are excluded from Today and Yesterday. Coverage is unknown.",
   offsets: "Results may change while loading. New additions can change order or leave Pages out of the loaded range; refresh manually to check again.",
   unknownDatesExcluded: "Pages without a valid added date are excluded.",
-  readingDetails: "Dates and loaded range",
+  dateHelp: "Added date help", rangeHelp: "Loaded range help",
+  rangeTitle: "Loaded range",
   pageInformation: "Page information", observation: "Observation interval", listObservation: "List observation", detailObservation: "Detail observation", loaded: "Loaded", matching: "Matching",
 };
 const pagesKo: typeof pagesEn = {
@@ -322,7 +325,8 @@ const pagesKo: typeof pagesEn = {
   coverage: "필터와 개수는 불러온 범위만 설명해요. 생성 날짜를 모르는 페이지는 오늘·어제에서 제외해요. 전체 포함 범위는 알 수 없어요.",
   offsets: "불러오는 동안 결과가 바뀔 수 있어요. 새로 추가된 페이지로 순서가 달라지거나 불러온 범위에서 페이지가 빠질 수 있어요. 수동으로 새로 확인해 주세요.",
   unknownDatesExcluded: "추가 날짜를 알 수 없는 페이지는 제외했어요.",
-  readingDetails: "날짜와 조회 범위",
+  dateHelp: "추가 날짜 도움말", rangeHelp: "조회 범위 도움말",
+  rangeTitle: "조회 범위",
   pageInformation: "페이지 정보", observation: "관찰 구간", listObservation: "목록 관찰", detailObservation: "상세 관찰", loaded: "불러옴", matching: "조건에 맞음",
 };
 export const pageMessages = { en: pagesEn, ko: pagesKo };

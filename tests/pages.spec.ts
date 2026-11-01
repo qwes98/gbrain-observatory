@@ -19,7 +19,7 @@ async function releasePage(page: Page, kind = 'success') {
 async function changePageCondition(page: Page, condition: 'filter' | 'zone' | 'day') {
   const pages = page.locator('.page-list');
   if (condition === 'filter') {
-    await pages.getByRole('button', { name: pageMessages.en.filter, exact: false }).click();
+    await pages.locator('.page-filter').getByRole('button', { name: pageMessages.en.filter, exact: false }).click();
     await pages.getByRole('option', { name: pageMessages.en.today, exact: true }).click();
   } else if (condition === 'zone') {
     await page.getByRole('combobox', { name: sourceMessages.en.timeZone, exact: true }).selectOption('Asia/Seoul');
@@ -142,7 +142,7 @@ test('enhanced Page filter supports keyboard selection, same-option clearing and
   await pageFixture(page);
   const t = pageMessages.en;
   const pages = page.locator('.page-list');
-  const filter = pages.getByRole('button', { name: t.filter, exact: false });
+  const filter = pages.locator('.page-filter').getByRole('button', { name: t.filter, exact: false });
   await filter.focus(); await page.keyboard.press('ArrowDown');
   await expect(pages.getByRole('option', { name: t.all, exact: true })).toBeFocused();
   await page.keyboard.press('End');
@@ -170,13 +170,13 @@ test('Page append deduplicates identities and retains prior rows, observation an
   const t = pageMessages.en;
   const pages = page.locator('.page-list');
   const more = pages.getByRole('button', { name: t.more, exact: true });
-  const original = await pages.locator('.reading-details time').first().getAttribute('datetime');
+  const original = await pages.locator('.context-help time').first().getAttribute('datetime');
   await more.focus(); await page.keyboard.press('Enter');
   await expect(pages).toContainText(t.loading);
   await releasePage(page, 'failure');
   await expect(pages).toContainText(t.failure);
   await expect(pages.locator('tbody tr')).toHaveCount(3);
-  await expect(pages.locator('.reading-details time').first()).toHaveAttribute('datetime', original!);
+  await expect(pages.locator('.context-help time').first()).toHaveAttribute('datetime', original!);
   await expect(more).toBeFocused();
   await page.keyboard.press('Enter'); await releasePage(page);
   await expect(pages.locator('tbody tr')).toHaveCount(4);
@@ -190,12 +190,12 @@ test('condition changes suppress late Page replies without mixing loaded ranges'
   const t = pageMessages.en;
   const pages = page.locator('.page-list');
   await pages.getByRole('button', { name: t.more, exact: true }).click();
-  await pages.getByRole('button', { name: t.filter, exact: false }).click();
+  await pages.locator('.page-filter').getByRole('button', { name: t.filter, exact: false }).click();
   await pages.getByRole('option', { name: t.today, exact: true }).click();
   await releasePage(page);
   await expect(pages.locator('tbody tr')).toHaveCount(1);
   await expect(pages).not.toContainText('추가 원본 / additional');
-  await pages.getByRole('button', { name: t.filter, exact: false }).click();
+  await pages.locator('.page-filter').getByRole('button', { name: t.filter, exact: false }).click();
   await pages.getByRole('option', { name: t.all, exact: true }).click();
   await expect(pages.locator('tbody tr')).toHaveCount(3);
 });
@@ -292,7 +292,7 @@ test('effective-zone changes recompute the loaded calendar range and discard an 
   await pageFixture(page);
   const t = pageMessages.en;
   const pages = page.locator('.page-list');
-  await pages.getByRole('button', { name: t.filter, exact: false }).click();
+  await pages.locator('.page-filter').getByRole('button', { name: t.filter, exact: false }).click();
   await pages.getByRole('option', { name: t.today, exact: true }).click();
   await expect(pages.locator('tbody tr')).toHaveCount(1);
   await pages.getByRole('button', { name: t.more, exact: true }).click();

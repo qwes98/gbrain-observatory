@@ -199,42 +199,50 @@ test('desktop coarse-pointer filter keeps touch targets, active styling and an a
   } finally { await context.close(); }
 });
 
-for (const locale of ['en', 'ko'] as const) test(`${locale} essential copy keeps scope visible and reading details available on demand`, async ({ page }) => {
+for (const locale of ['en', 'ko'] as const) test(`${locale} contextual help preserves explanations beside the related data`, async ({ page }) => {
   const t = sourceMessages[locale];
   const p = pageMessages[locale];
   await page.clock.setFixedTime(new Date('2026-10-31T12:00:00Z'));
   await page.goto(`${fixtureOrigin}/?${new URLSearchParams({ scenario: 'pages-seeded', locale, timeZone: 'UTC', source: sourceReference(sourceSnapshot.sources[0]) })}`);
-  await expect(page.locator('.page-heading > p')).toHaveCount(0);
+  await expect(page.locator('.page-heading > p, .source-help, .reading-details')).toHaveCount(0);
   await expect(page.locator('.source-card').last()).toHaveText(`${t.ingestionService}${t.serviceNotProvided}`);
-  await expect(page.locator('.source-sync')).not.toContainText(t.syncExplanation);
+  const sync = page.locator('.source-sync').getByRole('button', { name: t.syncHelp, exact: true });
+  await sync.click();
+  await expect(page.getByRole('dialog', { name: t.sourceSync, exact: true })).toContainText(t.scopeNote);
+  await page.keyboard.press('Escape');
+  await expect(sync).toBeFocused();
   const pages = page.locator('.page-list');
-  const details = pages.locator('.reading-details');
-  await expect(details).not.toHaveAttribute('open');
-  await expect(pages.getByText(p.meaning, { exact: true })).toBeHidden();
-  await expect(pages.getByText(p.coverage, { exact: true })).toBeHidden();
+  const date = pages.getByRole('button', { name: p.dateHelp, exact: true });
+  await expect(date).toHaveAccessibleName(locale === 'en' ? 'Added date help' : '추가 날짜 도움말');
+  await date.focus(); await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', { name: p.added, exact: true })).toContainText(p.meaning);
+  await page.keyboard.press('Escape');
+  await expect(date).toBeFocused();
+  const range = pages.getByRole('button', { name: p.rangeHelp, exact: true });
+  await expect(range).toHaveAccessibleName(locale === 'en' ? 'Loaded range help' : '조회 범위 도움말');
+  await expect(pages.locator('.context-value > span')).toHaveText(`${p.loaded}: ${locale === 'en' ? '3 results' : '결과 3개'}`);
+  await range.click();
+  const help = page.getByRole('dialog', { name: p.rangeTitle, exact: true });
+  await expect(help).toContainText(p.coverage);
+  await expect(help).toContainText(p.offsets);
+  await expect(help.locator('time')).toHaveCount(4);
+  await expect(pages.locator('tbody')).toContainText('오늘의 원본 / today');
+  await help.getByRole('button', { name: t.close, exact: true }).click();
+  await expect(range).toBeFocused();
   await expect(pages.getByText(p.range, { exact: true })).toBeVisible();
   await expect(pages.getByText(p.unknownDatesExcluded, { exact: true })).toHaveCount(0);
-  // Fixed examples validate the new labels independently of the catalog used by locators.
-  await expect(details.locator('summary')).toHaveText(locale === 'en' ? 'Dates and loaded range' : '날짜와 조회 범위');
-  await expect(pages.locator('.table-footer')).toHaveText(`${p.loaded}: ${locale === 'en' ? '3 results' : '결과 3개'}UTC`);
-  await details.locator('summary').focus();
-  await page.keyboard.press('Enter');
-  await expect(pages.getByText(p.meaning, { exact: true })).toBeVisible();
-  await expect(pages.getByText(p.coverage, { exact: true })).toBeVisible();
-  await expect(pages.getByText(p.offsets, { exact: true })).toBeVisible();
-  await expect(details.locator('time')).toHaveCount(4);
-  await expect(pages.locator('tbody')).toContainText('오늘의 원본 / today');
-  await page.keyboard.press('Space');
-  await expect(details).not.toHaveAttribute('open');
-  await expect(details.locator('summary')).toBeFocused();
   await pages.getByRole('button', { name: `${p.filter}: ${p.all}`, exact: true }).click();
   await pages.getByRole('option', { name: p.today, exact: true }).click();
-  await expect(pages.locator('.table-footer')).toHaveText(locale === 'en'
-    ? 'Matching: 1 result · Loaded: 3 resultsUTC' : '조건에 맞음: 결과 1개 · 불러옴: 결과 3개UTC');
+  await expect(pages.locator('.context-value > span')).toHaveText(locale === 'en'
+    ? 'Matching: 1 result · Loaded: 3 results' : '조건에 맞음: 결과 1개 · 불러옴: 결과 3개');
   await expect(pages.getByRole('status')).toContainText(locale === 'en'
     ? 'Matching: 1 result · Loaded: 3 results' : '조건에 맞음: 결과 1개 · 불러옴: 결과 3개');
   await expect(pages.getByText(p.unknownDatesExcluded, { exact: true })).toBeVisible();
   await page.getByRole('link', { name: t.returnToList, exact: true }).click();
+  await expect(page.locator('.table-board .context-value > span')).toContainText(locale === 'en'
+    ? 'Active sources · total unknown' : '활성 소스 · 전체 범위 미확인');
+  await expect(page.locator('.table-board .context-value > span')).toBeVisible();
+  await page.getByRole('button', { name: t.sourceScopeHelp, exact: true }).click();
   await expect(page.getByText(t.coverageUnknown, { exact: true })).toHaveText(locale === 'en'
     ? 'Available active sources only; total coverage is unknown.' : '볼 수 있는 활성 소스만 표시해요. 전체 범위는 알 수 없어요.');
   await page.goto(`${fixtureOrigin}/?${new URLSearchParams({ scenario: 'pages-dated', locale, timeZone: 'UTC', source: sourceReference(sourceSnapshot.sources[0]), added: 'today' })}`);

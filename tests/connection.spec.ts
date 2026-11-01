@@ -39,11 +39,10 @@ test.describe('configured connection boundary', () => {
     await expect(button).toBeFocused();
     await expect(page.locator('tbody tr')).toHaveCount(1);
     await expect(page.locator('.table-footer')).toContainText('1 result');
-    const checkDetails = page.locator('.connection-panel details');
     await expect(page.getByText(messages.scope, { exact: true })).toBeHidden();
-    await checkDetails.locator('summary').click();
+    await page.locator('.connection-panel').getByRole('button', { name: messages.details, exact: true }).click();
     await expect(page.getByText(messages.scope, { exact: true })).toBeVisible();
-    await checkDetails.locator('summary').click();
+    await page.locator('.connection-panel').getByRole('button', { name: messages.details, exact: true }).click();
     await expect(page.getByText('0.60.323.0', { exact: true })).toBeVisible();
     await expect(page.locator('.connection-panel')).not.toContainText(/private|secret-token/);
     const observation = await page.locator('.connection-panel time').getAttribute('datetime');
@@ -185,16 +184,25 @@ test.describe('configured connection boundary', () => {
     await context.addCookies([{ name: localeCookie, value: locale, url: origin }]);
     const page = await context.newPage(); await page.goto(origin); await clearCalls();
     const t = sourceMessages[locale];
-    const sourceDetails = page.locator('.source-reading-details');
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    const sourceDetails = page.locator('.table-board .context-help').filter({ hasText: t.scopeNote });
     await expect(page.getByText(t.scopeNote, { exact: true }).filter({ visible: true })).toHaveCount(0);
-    await sourceDetails.locator('summary').click();
+    await page.getByRole('button', { name: t.syncHelp, exact: true }).click();
     await expect(sourceDetails.getByText(t.scopeNote, { exact: true })).toBeVisible();
-    await sourceDetails.locator('summary').click();
+    const listHelpBox = (await sourceDetails.boundingBox())!;
+    expect(listHelpBox.x).toBeGreaterThanOrEqual(11);
+    expect(listHelpBox.x + listHelpBox.width).toBeLessThanOrEqual(309);
+    expect(listHelpBox.y).toBeGreaterThanOrEqual(11);
+    expect(listHelpBox.y + listHelpBox.height).toBeLessThanOrEqual(889);
+    await page.screenshot({ path: `test-results/help-${locale}-list-native-320-enlarged.png` });
+    await page.getByRole('button', { name: t.syncHelp, exact: true }).click();
     const sourceLink = page.locator('.desktop-navigation .source-tree a').first();
     const sourceHref = await sourceLink.getAttribute('href');
     await page.goto(new URL(sourceHref!, origin).href);
-    await page.locator('.source-help summary').click();
-    await expect(page.locator('.source-help').getByText(t.scopeNote, { exact: true })).toBeVisible();
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    await page.getByRole('button', { name: t.syncHelp, exact: true }).click();
+    await expect(page.locator('.source-sync .context-help').getByText(t.scopeNote, { exact: true })).toBeVisible();
+    await page.screenshot({ path: `test-results/help-${locale}-detail-native-320-enlarged.png` });
     await page.goto(origin);
     // Independent examples detect a shared dictionary fallback.
     await expect(page.getByRole('heading', { name: locale === 'en' ? 'GBrain connection' : 'GBrain 연결', exact: true })).toBeVisible();
@@ -210,6 +218,36 @@ test.describe('configured connection boundary', () => {
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     expect(await page.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({ path: `test-results/connection-${locale}-320-enlarged-native.png`, fullPage: true });
+    await page.getByRole('button', { name: t.connectionCheck.details, exact: true }).click();
+    await expect(page.getByRole('dialog', { name: t.connectionCheck.title, exact: true })).toContainText(t.connectionCheck.limitation);
+    await page.screenshot({ path: `test-results/help-${locale}-connection-native-320-enlarged.png` });
+    await page.keyboard.press('Escape');
+    // Simulate an engine without CSS anchoring, keeping native popover and JS disabled.
+    const removed = await page.evaluate(() => {
+      let count = 0;
+      for (const sheet of document.styleSheets) for (let index = sheet.cssRules.length - 1; index >= 0; index--) {
+        const rule = sheet.cssRules[index];
+        if (rule instanceof CSSSupportsRule && rule.conditionText.includes('position-area')) { sheet.deleteRule(index); count++; }
+      }
+      return count;
+    });
+    expect(removed).toBeGreaterThan(0);
+    const trigger = page.getByRole('button', { name: t.connectionCheck.details, exact: true });
+    await trigger.click();
+    const fallback = page.getByRole('dialog', { name: t.connectionCheck.title, exact: true });
+    const fallbackBox = (await fallback.boundingBox())!;
+    expect(Math.abs(fallbackBox.x + fallbackBox.width / 2 - 160)).toBeLessThan(2);
+    expect(fallbackBox.x).toBeGreaterThanOrEqual(11);
+    expect(fallbackBox.y).toBeGreaterThanOrEqual(11);
+    expect(fallbackBox.x + fallbackBox.width).toBeLessThanOrEqual(309);
+    expect(fallbackBox.y + fallbackBox.height).toBeLessThanOrEqual(889);
+    await fallback.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    const close = fallback.getByRole('button', { name: t.close, exact: true });
+    await expect(close).toBeInViewport();
+    await page.screenshot({ path: `test-results/help-${locale}-unanchored-native-320-enlarged.png` });
+    await close.click();
+    await expect(fallback).toBeHidden();
+    await expect(trigger).toBeFocused();
     await context.close();
   });
 
@@ -222,7 +260,11 @@ test.describe('configured connection boundary', () => {
     const t = sourceMessages.en;
     const table = page.getByRole('table');
     await expect(table.locator('tbody tr')).toHaveCount(3);
+    await expect(page.locator('.table-board .context-value > span')).toContainText('Active sources · total unknown');
+    await expect(page.locator('.table-board .context-value > span')).toBeVisible();
+    await page.getByRole('button', { name: t.sourceScopeHelp, exact: true }).click();
     await expect(page.getByText(t.coverageUnknown, { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(table.getByRole('row').filter({ hasText: 'folder-only' })).toHaveCount(1);
     const sameName = table.getByRole('link', { name: '동일 이름 / duplicate', exact: true });
     await expect(sameName).toHaveCount(2);
@@ -571,6 +613,26 @@ test.describe('configured connection boundary', () => {
       await native.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
       expect(await native.locator('body').evaluate(element => element.scrollWidth <= window.innerWidth)).toBe(true);
       await native.screenshot({ path: `test-results/pages-${locale}-320-text200-native.png`, fullPage: true });
+      for (const [label, title, content, kind] of [[t.rangeHelp, t.rangeTitle, t.coverage, 'range'], [t.dateHelp, t.added, t.meaning, 'date']]) {
+        await pages.getByRole('button', { name: label, exact: true }).click();
+        const help = native.getByRole('dialog', { name: title, exact: true });
+        await expect(help).toContainText(content);
+        const bounds = (await help.boundingBox())!;
+        expect(bounds.x).toBeGreaterThanOrEqual(11);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(309);
+        expect(bounds.y).toBeGreaterThanOrEqual(11);
+        expect(bounds.y + bounds.height).toBeLessThanOrEqual(889);
+        await native.screenshot({ path: `test-results/help-${locale}-page-${kind}-native-320-enlarged.png` });
+        if (kind === 'range') {
+          await help.evaluate(element => { element.scrollTop = element.scrollHeight; });
+          const close = help.getByRole('button', { name: sourceMessages[locale].close, exact: true });
+          await expect(close).toBeInViewport();
+          await native.screenshot({ path: `test-results/help-${locale}-page-range-scrolled-native-320-enlarged.png` });
+          await close.click();
+        } else await native.keyboard.press('Escape');
+        await expect(pages.getByRole('button', { name: label, exact: true })).toBeFocused();
+      }
+
     } finally { await context.close(); }
   });
 });
