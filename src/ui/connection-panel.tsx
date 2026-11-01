@@ -36,7 +36,7 @@ class ConnectionBoundary extends Component<ConnectionPanelProps, BoundaryState> 
   render() {
     const t = sourceMessages[this.props.locale].connectionCheck;
     const content = this.state.failed ? <section className="connection-panel" aria-labelledby="connection-title">
-      <h2 id="connection-title">{t.title}</h2>
+      <h2 className="sr-only" id="connection-title">{t.title}</h2>
       <div role="status" aria-live="polite"><p>{t.causes.failed.reason}</p><p>{t.causes.failed.action}</p></div>
       <button type="button" onClick={() => this.setState({ failed: false, retry: true })}>{t.check}</button>
     </section> : <ConnectionForm {...this.props} retry={this.state.retry} />;
@@ -62,7 +62,7 @@ function ConnectionForm({ locale, initial, action, retry }: ConnectionPanelProps
   const time = observation && formatInstant(observation.observedAt, locale, zone);
   const issue = !pending && result && result.kind !== "success" ? t.causes[result.cause] : undefined;
   return <section className="connection-panel" aria-labelledby="connection-title">
-    <h2 id="connection-title">{t.title}</h2>
+    <h2 className="sr-only" id="connection-title">{t.title}</h2>
     <form ref={form} aria-busy={pending} action={formAction} onSubmit={event => {
       if (pending || submitted.current) event.preventDefault();
       else submitted.current = true;
@@ -74,11 +74,9 @@ function ConnectionForm({ locale, initial, action, retry }: ConnectionPanelProps
         <dl><div><dt>{t.version}</dt><dd>{observation.version}</dd></div>
           <div><dt>{t.observedAt}</dt><dd><time dateTime={observation.observedAt}>{time ? `${time.text} · ${time.offset}` : sourceMessages[locale].invalidTime}</time> · {zone}</dd></div>
           <div><dt>{t.count}</dt><dd>{new Intl.NumberFormat(locale).format(observation.sourceCount)}</dd></div></dl>
-        <p>{t.scope}</p>
       </>}
       {issue && <><p>{issue.reason}</p><p>{issue.action}</p></>}
-      {!result && !pending && <p>{t.ready}</p>}
     </div>
-    <p>{t.limitation}</p>
+    <details className="reading-details"><summary>{t.details}</summary><div><p>{t.scope}</p><p>{t.limitation}</p></div></details>
   </section>;
 }

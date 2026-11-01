@@ -102,6 +102,8 @@ test('Page messages include complete Korean translations and independent accepta
     expect(pageMessages.ko[key], key).not.toBe(pageMessages.en[key]);
   }
   expect(pageMessages.en).toMatchObject({ title: 'Recently added Pages', filter: 'Added', today: 'Today', yesterday: 'Yesterday', added: 'Added to Brain' });
+  expect(pageMessages.en).toMatchObject({ cap: '100-entry scan limit reached. Refresh to start again.', end: 'End of loaded range; total coverage is unknown.' });
+  expect(pageMessages.ko).toMatchObject({ cap: '페이지 항목 100개 조회 제한에 도달했어요. 새로 확인하면 처음부터 읽어요.', end: '불러온 범위의 끝이에요. 전체 범위는 알 수 없어요.' });
   expect(pageMessages.ko).toMatchObject({ title: '최근 추가된 페이지', filter: '추가 시점', today: '오늘', yesterday: '어제', added: 'Brain에 추가됨' });
 });
 
@@ -168,13 +170,13 @@ test('Page append deduplicates identities and retains prior rows, observation an
   const t = pageMessages.en;
   const pages = page.locator('.page-list');
   const more = pages.getByRole('button', { name: t.more, exact: true });
-  const original = await pages.locator('.scope-note time').first().getAttribute('datetime');
+  const original = await pages.locator('.reading-details time').first().getAttribute('datetime');
   await more.focus(); await page.keyboard.press('Enter');
   await expect(pages).toContainText(t.loading);
   await releasePage(page, 'failure');
   await expect(pages).toContainText(t.failure);
   await expect(pages.locator('tbody tr')).toHaveCount(3);
-  await expect(pages.locator('.scope-note time').first()).toHaveAttribute('datetime', original!);
+  await expect(pages.locator('.reading-details time').first()).toHaveAttribute('datetime', original!);
   await expect(more).toBeFocused();
   await page.keyboard.press('Enter'); await releasePage(page);
   await expect(pages.locator('tbody tr')).toHaveCount(4);

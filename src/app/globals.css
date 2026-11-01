@@ -273,3 +273,11 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .context-bar > span { min-width: 0; }
 .source-disambiguation { display: block; font-size: .75rem; font-weight: 400; color: var(--secondary); }
 .page-filter-options button:focus-visible { outline-offset: -2px; }
+
+.reading-details { margin-top: 14px; font-size: .78125rem; color: var(--secondary); overflow-wrap: anywhere; }
+.reading-details > summary { width: fit-content; min-height: 32px; display: list-item; align-content: center; cursor: pointer; }
+.reading-details > div { padding-top: 8px; max-width: 90ch; }
+.reading-details p { margin: 0 0 10px; }
+@media (max-width: 700px), (pointer: coarse) {
+  .reading-details > summary { min-height: 44px; }
+}

@@ -110,6 +110,7 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
   const [hadMore, setHadMore] = useState(false);
   if (snapshot?.range === "more" && !hadMore) setHadMore(true);
   const rows = snapshot?.pages.filter(page => matchesCalendarFilter(page.createdAt, filter, zone, now)) ?? [];
+  const excludesUnknownDates = filter !== "all" && snapshot?.pages.some(page => !page.createdAt || calendarDay(page.createdAt, zone) === null);
   const canRead = !!endpoint || !!loadPages;
   const issue = state.kind === "failure" ? state.reason === "busy" ? t.busy : t.failure
     : state.kind === "denied" || state.kind === "unavailable" ? t.unavailable
@@ -125,8 +126,8 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
     <div role="status" aria-live="polite" aria-atomic="true" className="page-status">
       {state.kind === "loading" && <p>{t.loading}</p>}{issue && <p>{issue}</p>}
       {snapshot && state.kind !== "success" && <p>{t.previous}</p>}
-      {state.kind === "success" && <p className="sr-only">{t.complete} {t.matching}: {formatResultCount(locale, rows.length)} · {t.loaded}: {formatResultCount(locale, snapshot?.pages.length ?? 0)}</p>}
-      {snapshot && rows.length === 0 && <p className="sr-only">{t.matching}: {formatResultCount(locale, 0)}. {t.empty}</p>}{state.kind === "idle" && !snapshot && <p>{t.pending}</p>}
+      {state.kind === "success" && <p className="sr-only">{t.complete} {filter !== "all" && <>{t.matching}: {formatResultCount(locale, rows.length)} · </>}{t.loaded}: {formatResultCount(locale, snapshot?.pages.length ?? 0)}</p>}
+      {snapshot && rows.length === 0 && <p className="sr-only">{t.empty}</p>}{state.kind === "idle" && !snapshot && <p>{t.pending}</p>}
     </div>
     {snapshot && <div className="page-table"><div className="table-scroll" role="region" aria-label={t.caption} tabIndex={0}>
       <table><colgroup><col /><col className="page-kind-column" /><col className="page-time-column" /><col className="page-time-column" /></colgroup><caption className="sr-only">{t.caption}</caption><thead><tr><th scope="col">{t.titleColumn}</th><th scope="col">{t.kind}</th><th scope="col">{t.added}</th><th scope="col">{t.changed}</th></tr></thead>
@@ -134,14 +135,17 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
           {rows.filter(candidate => (candidate.title.trim() ? candidate.title : candidate.slug) === (page.title.trim() ? page.title : page.slug)).length > 1 && <small className="page-slug">{page.slug}</small>}
           <details className="page-observation"><summary aria-label={`${t.pageInformation}: ${page.title.trim() ? page.title : page.slug} · ${page.slug}`}>{t.pageInformation}</summary><small className="page-slug">{page.slug}</small>{page.detailObservation && <><span>{t.detailObservation}</span><Interval value={page.detailObservation} locale={locale} /></>}</details></th>
           <td>{page.kind}</td><td><PageTime value={page.createdAt} availability={page.creationAvailability} locale={locale} /></td><td><PageTime value={page.updatedAt} availability={page.modificationAvailability} locale={locale} /></td></tr>)}</tbody>
-      </table></div>{rows.length === 0 && <p className="page-empty">{t.empty}</p>}<div className="table-footer"><span>{t.matching}: {formatResultCount(locale, rows.length)} · {t.loaded}: {formatResultCount(locale, snapshot.pages.length)}</span><span>{zone}</span></div></div>}
+      </table></div>{rows.length === 0 && <p className="page-empty">{t.empty}</p>}<div className="table-footer"><span>{filter !== "all" && <>{t.matching}: {formatResultCount(locale, rows.length)} · </>}{t.loaded}: {formatResultCount(locale, snapshot.pages.length)}</span><span>{zone}</span></div></div>}
     </div>
     {snapshot && <>
-      <p className="scope-note">{t.listObservation}: <Interval value={snapshot.listObservation} locale={locale} /></p>
-      <p className="scope-note">{t.observation}: <Interval value={snapshot.observation} locale={locale} /></p>
+      {excludesUnknownDates && <p className="scope-note">{t.unknownDatesExcluded}</p>}
       <p className="scope-note">{snapshot.range === "cap" ? t.cap : snapshot.range === "observed-end" ? t.end : t.range}</p>
       {hadMore && canRead && enhanced && <button className="page-more" type="button" aria-disabled={state.kind === "loading" || snapshot.range !== "more"} onClick={more}>{t.more}</button>}
     </>}
-    <p className="scope-note">{t.meaning}</p><p className="scope-note">{t.coverage}</p><p className="scope-note">{t.offsets}</p>
+    <details className="reading-details"><summary>{t.readingDetails}</summary><div>
+      {snapshot && <><p>{t.listObservation}: <Interval value={snapshot.listObservation} locale={locale} /></p>
+        <p>{t.observation}: <Interval value={snapshot.observation} locale={locale} /></p></>}
+      <p>{t.meaning}</p><p>{t.coverage}</p><p>{t.offsets}</p>
+    </div></details>
   </section>;
 }

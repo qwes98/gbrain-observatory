@@ -39,7 +39,11 @@ test.describe('configured connection boundary', () => {
     await expect(button).toBeFocused();
     await expect(page.locator('tbody tr')).toHaveCount(1);
     await expect(page.locator('.table-footer')).toContainText('1 result');
+    const checkDetails = page.locator('.connection-panel details');
+    await expect(page.getByText(messages.scope, { exact: true })).toBeHidden();
+    await checkDetails.locator('summary').click();
     await expect(page.getByText(messages.scope, { exact: true })).toBeVisible();
+    await checkDetails.locator('summary').click();
     await expect(page.getByText('0.60.323.0', { exact: true })).toBeVisible();
     await expect(page.locator('.connection-panel')).not.toContainText(/private|secret-token/);
     const observation = await page.locator('.connection-panel time').getAttribute('datetime');
@@ -181,6 +185,17 @@ test.describe('configured connection boundary', () => {
     await context.addCookies([{ name: localeCookie, value: locale, url: origin }]);
     const page = await context.newPage(); await page.goto(origin); await clearCalls();
     const t = sourceMessages[locale];
+    const sourceDetails = page.locator('.source-reading-details');
+    await expect(page.getByText(t.scopeNote, { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await sourceDetails.locator('summary').click();
+    await expect(sourceDetails.getByText(t.scopeNote, { exact: true })).toBeVisible();
+    await sourceDetails.locator('summary').click();
+    const sourceLink = page.locator('.desktop-navigation .source-tree a').first();
+    const sourceHref = await sourceLink.getAttribute('href');
+    await page.goto(new URL(sourceHref!, origin).href);
+    await page.locator('.source-help summary').click();
+    await expect(page.locator('.source-help').getByText(t.scopeNote, { exact: true })).toBeVisible();
+    await page.goto(origin);
     // Independent examples detect a shared dictionary fallback.
     await expect(page.getByRole('heading', { name: locale === 'en' ? 'GBrain connection' : 'GBrain 연결', exact: true })).toBeVisible();
     await page.getByRole('button', { name: t.connectionCheck.check, exact: true }).click();

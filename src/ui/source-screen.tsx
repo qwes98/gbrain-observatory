@@ -145,8 +145,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             {showSourceDetail ? <>
               <a className="return-list" href={navigation.href(null)} onClick={event => navigation.navigate(null, event)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>{t.returnToList}</a>
               <h1 id="source-detail-title" tabIndex={-1}>{selectedSource ? sourceName(selectedSource) : t.selectionUnavailable}</h1>
-              {selectedSource && <p>{t.sourceDescription}</p>}
-            </> : <><h1>{t.sources}</h1><p>{t.description}</p></>}
+            </> : <h1>{t.sources}</h1>}
           </div>
           <div className="workspace-controls"><div className="source-toolbar">
             <span className={`section-label${navigation.selected !== null ? " sr-only" : ""}`} id="source-list-title" tabIndex={-1}>{t.sourceList}</span>
@@ -176,7 +175,6 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                 <section className="source-card source-sync" aria-labelledby="source-sync-title">
                   <h2 id="source-sync-title">{t.sourceSync}</h2>
                   <span className="sync-status unknown"><span aria-hidden="true" className="status-dot" />{t.syncUnknown}</span>
-                  <p>{t.syncExplanation}</p>
                   <dl className="source-times">
                     <div><dt>{t.lastSyncedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.lastSyncedAt} /></dd></div>
                     <div><dt>{t.checkedAt}</dt><dd><Timestamp locale={locale} value={selectedSource.checkedAt} /></dd></div>
@@ -200,12 +198,11 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                 </section>
                 <section className="source-card" aria-labelledby="source-service-title">
                   <h2 id="source-service-title">{t.ingestionService}</h2>
-                  <p>{t.serviceNotProvided}</p><p className="muted">{t.serviceUnknown}</p>
-                  <dl className="source-connections"><div><dt>{t.connectorProvider}</dt><dd>{t.notProvided}</dd></div></dl>
+                  <p>{t.serviceNotProvided}</p>
                 </section>
               </div>
             </div><PageList key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={navigation.href(navigation.selected).slice(1)} locale={locale} loadPages={loadPages} />
-              <details className="source-help"><summary>{t.syncHelp}</summary><div><p>{t.guideAction}</p></div></details>
+              <details className="source-help"><summary>{t.syncHelp}</summary><div><p>{t.scopeNote}</p><p>{t.guideAction}</p></div></details>
             </> : <p>{t.selectionUnavailableReason}</p>}
           </section>}
           <div className="table-board" hidden={navigation.selected !== null} aria-busy={state.kind === "loading"}>
@@ -223,14 +220,17 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             </div>
             <div className="table-footer">{snapshot && <span>{formatResultCount(locale, snapshot.sources.length)}</span>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
           </div>
-          <p className="scope-note">{t.scopeNote}</p><p className="scope-note">{t.coverageUnknown}</p>
+          {navigation.selected === null && snapshot && <>
+            <p className="scope-note">{t.coverageUnknown}</p>
+            <details className="reading-details source-reading-details"><summary>{t.readingDetails}</summary><div><p>{t.scopeNote}</p></div></details>
+          </>}
         </div>
       </main>
     </div>
     <dialog className="connection-guide" ref={guide} aria-labelledby="guide-title" aria-describedby="guide-intro" onClose={() => guideTrigger.current?.focus()}>
       <div className="guide-header"><h2 id="guide-title">{t.guide}</h2><button type="button" onClick={() => guide.current?.close()}>{t.close}</button></div>
       <div className="guide-body"><p id="guide-intro">{issue?.reason ?? t.guideIntro}</p><h3>{t.guideHeading}</h3><p>{issue?.action ?? t.guideAction}</p>
-        <details><summary>{t.detailedChecks}</summary><ul><li>{t.checkServer}</li><li>{t.checkPermissions}</li><li>{t.checkUnknown}</li></ul></details>
+        <p>{t.scopeNote}</p><details><summary>{t.detailedChecks}</summary><ul><li>{t.checkServer}</li><li>{t.checkPermissions}</li><li>{t.checkUnknown}</li></ul></details>
       </div>
     </dialog>
   </>;

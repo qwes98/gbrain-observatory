@@ -38,7 +38,7 @@ const control = {
 };
 Object.assign(window, { __sourceFixture: control });
 const pageControl = { calls: [] as PageRequest[], release: (kind: string) => { void kind; } };
-const initialPageResult: PageListResult = { kind: 'success', snapshot: pageSnapshot };
+const initialPageResult: PageListResult = { kind: 'success', snapshot: { ...pageSnapshot, pages: scenario === 'pages-empty' ? [] : scenario === 'pages-dated' ? pageSnapshot.pages.filter(page => page.createdAt !== null) : pageSnapshot.pages } };
 Object.assign(window, { __pageFixture: pageControl });
 function loadPages(request: PageRequest): Promise<PageListResult> {
   pageControl.calls.push(request);

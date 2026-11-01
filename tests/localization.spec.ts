@@ -32,6 +32,8 @@ function flattenMessages(value: object, prefix = ''): Record<string, string> {
 
 test('translation catalogs have matching keys, nonempty values and independent acceptance examples', () => {
   expect(Object.keys(sourceMessages).sort()).toEqual([...locales].sort());
+  expect(sourceMessages.en.scopeNote).toContain('whether later changes are included');
+  expect(sourceMessages.ko.scopeNote).toContain('이후 변경의 반영 여부');
   const defaultKeys = Object.keys(flattenMessages(sourceMessages.en)).sort();
   for (const locale of locales) {
     const catalog = flattenMessages(sourceMessages[locale]);
