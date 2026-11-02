@@ -1,16 +1,24 @@
 "use client";
 
-import { useId, useRef, useState, type ReactNode } from "react";
-import { defaultLocale, formatResultCount, sourceMessages, type Locale } from "../i18n/messages";
-import { sourceReference, validSourceReference, type Source, type SourceListResult, type SourceListState } from "../contracts/sources";
+import { useId, useRef, useState, useEffect, useSyncExternalStore, useCallback, type ReactNode } from "react";
+import { defaultLocale, formatResultCount, sourceMessages, readerMessages, type Locale } from "../i18n/messages";
+import { sourceReference, sourceNavigationParameters, validSourceReference, type Source, type SourceListResult, type SourceListState } from "../contracts/sources";
 import { formatInstant } from "../i18n/time-zone";
 import { useTimeZone } from "./time-zone-provider";
 import { useSourceList } from "./use-source-list";
 import { sourceRowId, useSourceNavigation } from "./use-source-navigation";
+import { PageReader } from "./page-reader";
+import { usePageDetail, type PageDetailLoader } from "./use-page-detail";
+import { usePageNavigation } from "./use-page-navigation";
+import type { PageDetailResult } from "../contracts/page-detail";
+import { calendarDay } from "../i18n/time-zone";
 import { PageList } from "./page-list";
 import { ContextHelp } from "./context-help";
 import type { PageListResult } from "../contracts/pages";
 import type { PageLoader } from "./use-page-list";
+
+function subscribeMobile(notify: () => void) { const media = window.matchMedia("(max-width: 760px)"); media.addEventListener("change", notify); return () => media.removeEventListener("change", notify); }
+function getMobile() { return window.matchMedia("(max-width: 760px)").matches; }
 
 interface SourceScreenProps {
   initialState: SourceListState;
@@ -25,6 +33,9 @@ interface SourceScreenProps {
   initialPages?: PageListResult;
   pagesEndpoint?: string;
   loadPages?: PageLoader;
+  initialDetail?: PageDetailResult;
+  detailEndpoint?: string;
+  loadDetail?: PageDetailLoader;
 }
 
 function Timestamp({ value, locale }: { value: string | null; locale: Locale }) {
@@ -86,7 +97,7 @@ function Navigation({ locale, sources, navigation, sourcesOpen, toggleSources }:
   </nav>;
 }
 
-export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativeRefresh = false, initialQuery = "", locale = defaultLocale, languageControl, timeZoneControl, connectionControl, initialPages, pagesEndpoint, loadPages }: SourceScreenProps) {
+export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativeRefresh = false, initialQuery = "", locale = defaultLocale, languageControl, timeZoneControl, connectionControl, initialPages, pagesEndpoint, loadPages, initialDetail, detailEndpoint, loadDetail }: SourceScreenProps) {
   const t = sourceMessages[locale];
   const zone = useTimeZone();
   const loader = loadSources ?? (refreshEndpoint ? async (): Promise<SourceListResult> => {
@@ -119,6 +130,42 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
   }
   // Leaving consumes the original server seed: returning must not revive denied or superseded rows.
   const scopedInitialPages = currentPageSeed.usable && initialPagesSource === navigation.selected ? currentPageSeed.seed : undefined;
+  const [calendarNow, setCalendarNow] = useState(() => initialDetail?.kind === "success" ? initialDetail.snapshot.observation.completedAt : initialPages?.kind === "success" ? initialPages.snapshot.observation.completedAt : new Date().toISOString());
+  useEffect(() => {
+    const tick = () => setCalendarNow(new Date().toISOString());
+    const timer = window.setInterval(tick, 30_000);
+    window.addEventListener("focus", tick); window.addEventListener("pageshow", tick); document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(timer); window.removeEventListener("focus", tick); window.removeEventListener("pageshow", tick); document.removeEventListener("visibilitychange", tick); };
+  }, []);
+  const pageNavigation = usePageNavigation(initialQuery, navigation.selected, navigation.expanded, navigation.filter);
+  const reading = pageNavigation.detail;
+  const currentParameters = sourceNavigationParameters(navigation.selected, navigation.expanded, navigation.filter, reading);
+  const currentQuery = currentParameters.toString();
+  const mobile = useSyncExternalStore(subscribeMobile, getMobile, () => false);
+  const [revoked, setRevoked] = useState<string | null>(null);
+  const revoke = useCallback(() => setRevoked(navigation.selected), [navigation.selected]);
+  const openPage: typeof pageNavigation.open = (page, event) => { setRevoked(null); pageNavigation.open(page, event); };
+  const detailRequest = reading && navigation.selected ? { source: navigation.selected, slug: reading.slug } : null;
+  const initialDetailSlug = new URLSearchParams(initialQuery).get("page");
+  const [detailSeed, setDetailSeed] = useState({ seed: initialDetail, usable: true });
+  let currentDetailSeed = detailSeed;
+  if (detailSeed.seed !== initialDetail) {
+    currentDetailSeed = { seed: initialDetail, usable: initialPagesSource === navigation.selected && initialDetailSlug === reading?.slug && !!selectedSource };
+    setDetailSeed(currentDetailSeed);
+  } else if (detailSeed.usable && (initialPagesSource !== navigation.selected || initialDetailSlug !== reading?.slug || !selectedSource)) {
+    currentDetailSeed = { ...detailSeed, usable: false }; setDetailSeed(currentDetailSeed);
+  }
+  const seedDetail = currentDetailSeed.usable ? initialDetail : undefined;
+  const detailState = usePageDetail(detailRequest, seedDetail, detailEndpoint, authority,
+    `${navigation.filter}|${zone}|${calendarDay(calendarNow, zone)}`, !!selectedSource && revoked !== navigation.selected, pageNavigation.intent, navigation.selected, snapshot?.sources.map(sourceReference) ?? [], loadDetail);
+  const outside = detailState.kind === "outside";
+  useEffect(() => {
+    if (!reading?.slug || detailState.kind === "success" || detailState.kind === "loading") return;
+    const state = window.history.state;
+    if (state?.pageReturn?.focus) window.history.replaceState({ ...state, pageReturn: { ...state.pageReturn, focus: "" } }, "", window.location.href);
+  }, [reading, detailState.kind]);
+  useEffect(() => { if (outside && reading) pageNavigation.closeInvalid(); }, [outside, reading, pageNavigation]);
+  const blockedBackground = !!reading && (mobile || reading.mode === "full");
   const guide = useRef<HTMLDialogElement>(null);
   const guideTrigger = useRef<HTMLButtonElement>(null);
   const previous = !!snapshot && state.kind !== "success";
@@ -128,8 +175,8 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
   const canReload = (!!loader || nativeRefresh) && state.kind !== "unconfigured";
 
   return <>
-    <a className="skip-link" href="#main">{t.skipToMain}</a>
-    <aside className="sidebar" aria-label={t.appNavigation}>
+    <a className="skip-link" href={reading ? "#page-reader-title" : "#main"}>{reading ? readerMessages[locale].skipToReader : t.skipToMain}</a>
+    <aside className="sidebar" inert={!!reading && mobile} aria-label={t.appNavigation}>
       <div className="brand"><svg className="brand-mark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="12" rx="10" ry="4.6" transform="rotate(-28 12 12)" /><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" /><circle cx="20.2" cy="7.6" r="1.3" fill="currentColor" stroke="none" /></svg><strong>GBrain Observatory</strong></div>
       <div className="desktop-navigation"><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} sourcesOpen={sourcesOpen} toggleSources={toggleSources} /></div>
       <details className="mobile-navigation"><summary>{t.navigationMenu}</summary><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} sourcesOpen={sourcesOpen} toggleSources={toggleSources} /></details>
@@ -138,9 +185,9 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
     <div className="workspace">
       <header className="context-bar"><span>{t.myBrain}</span><span aria-hidden="true">/</span><span aria-current={navigation.selected === null ? "page" : undefined}>{t.sources}</span>{selectedSource && <><span aria-hidden="true">/</span><span aria-current="page">{sourceName(selectedSource)}</span></>}</header>
       <main id="main" tabIndex={-1} className="min-w-0">
-        <div className="desk" onSubmitCapture={event => {
+        <div className="desk" hidden={reading?.mode === "full"} inert={blockedBackground} onSubmitCapture={event => {
           const input = (event.target as HTMLFormElement).querySelector<HTMLInputElement>('input[name="sourceReturn"]');
-          if (input) input.value = `/${navigation.href(navigation.selected)}`;
+          if (input) input.value = typeof window === "undefined" ? `/${navigation.href(navigation.selected)}` : `${window.location.pathname}${window.location.search}`;
         }}>
           <div className={`page-heading${showSourceDetail ? " source-heading" : ""}`}>
             {showSourceDetail ? <>
@@ -151,15 +198,15 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
           <div className="workspace-controls"><div className="source-toolbar">
             <span className={`section-label${navigation.selected !== null ? " sr-only" : ""}`} id="source-list-title" tabIndex={-1}>{t.sourceList}</span>
             <div className="toolbar-actions">
-              {languageControl}
+              {reading?.mode !== "full" && languageControl}
               {canReload && <form action="/" method="get" onSubmit={event => { if (loader) { event.preventDefault(); void refresh(); } }}>
-                {Array.from(new URLSearchParams(navigation.href(navigation.selected).slice(1))).filter(([key]) => key === "source" || key === "expanded" || key === "added").map(([key, value], index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />)}
+                {Array.from(currentParameters).filter(([key]) => key === "source" || key === "expanded" || key === "added" || key === "page" || key === "view" || key === "reading").map(([key, value], index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />)}
                 <button type="submit" aria-disabled={state.kind === "loading"}>{state.kind === "loading" ? t.refreshing : t.refresh}</button>
               </form>}
               <button type="button" ref={guideTrigger} onClick={() => guide.current?.showModal()}>{t.guide}</button>
             </div>
           </div>
-          {timeZoneControl}</div>
+          {reading?.mode !== "full" && timeZoneControl}</div>
           {connectionControl}
           <div className="state-announcement" role="status" aria-live="polite" aria-atomic="true">
             {state.kind === "loading" && <p>{t.loading}</p>}
@@ -170,6 +217,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             {previous && <p className="previous-notice">{t.previous} · {t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</p>}
             {state.kind === "success" && snapshot?.sources.length === 0 && <div className="empty-board"><h2>{t.emptyTitle}</h2><p>{t.emptyDescription}</p></div>}
           </div>
+          {outside && !reading && <p className="reader-issue" role="status">{readerMessages[locale].outside}</p>}
           {showSourceDetail && <section className="source-detail" aria-labelledby="source-detail-title">
             {selectedSource ? <><div className="source-fields">
               <div className="source-cards">
@@ -202,7 +250,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                   <p>{t.serviceNotProvided}</p>
                 </section>
               </div>
-            </div><PageList key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={navigation.href(navigation.selected).slice(1)} locale={locale} loadPages={loadPages} />
+            </div><PageList deferInitial={!!reading} selectedPage={reading?.slug ?? (pageNavigation.lastSelection?.source === navigation.selected ? pageNavigation.lastSelection.slug : null)} deniedPage={(detailState.kind === "denied" || detailState.kind === "unavailable") && reading ? { slug: reading.slug, token: detailState, intent: pageNavigation.intent } : undefined} pageHref={page => pageNavigation.href({ slug: page.slug, view: "memories", mode: "panel" })} openPage={openPage} onAccessLost={revoke} key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={currentQuery} locale={locale} loadPages={loadPages} />
             </> : <p>{t.selectionUnavailableReason}</p>}
           </section>}
           <div className="table-board" hidden={navigation.selected !== null} aria-busy={state.kind === "loading"}>
@@ -221,6 +269,9 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             <div className="table-footer">{snapshot && <div className="context-value"><span>{formatResultCount(locale, snapshot.sources.length)} · {t.coverageSummary}</span><ContextHelp locale={locale} label={t.sourceScopeHelp} title={t.sources}><p>{t.coverageUnknown}</p></ContextHelp></div>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
           </div>
         </div>
+        {reading && <PageReader key={`${navigation.selected}|${reading.slug}`} state={detailState} detail={reading} locale={locale} query={pageNavigation.query}
+          href={pageNavigation.href} move={pageNavigation.move} setView={pageNavigation.setView} open={openPage} outside={outside}
+          preferences={reading.mode === "full" ? <div className="workspace-controls">{languageControl}{timeZoneControl}</div> : undefined} />}
       </main>
     </div>
     <dialog className="connection-guide" ref={guide} aria-labelledby="guide-title" aria-describedby="guide-intro" onClose={() => guideTrigger.current?.focus()}>

@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from "react";
-import { pageReference, type PageFieldAvailability, type PageFilter, type PageListResult } from "../contracts/pages";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type MouseEvent } from "react";
+import { pageReference, type Page, type PageFieldAvailability, type PageFilter, type PageListResult } from "../contracts/pages";
 import { pageMessages, formatResultCount, type Locale } from "../i18n/messages";
 import { calendarDay, formatInstant, matchesCalendarFilter } from "../i18n/time-zone";
 import { useTimeZone } from "./time-zone-provider";
+import { boundedPageSlug } from "../contracts/sources";
+import { pageRowId } from "./use-page-navigation";
 import { ContextHelp } from "./context-help";
 import { usePageList, type PageLoader } from "./use-page-list";
 
@@ -95,7 +97,8 @@ function AddedFilter({ locale, filter, setFilter, query }: { locale: Locale; fil
   </div>;
 }
 
-export function PageList({ source, seed, endpoint, authority, filter, setFilter, query, locale, loadPages }: {
+export function PageList({ source, seed, endpoint, authority, filter, setFilter, query, locale, loadPages, selectedPage, pageHref, openPage, onAccessLost, deniedPage, deferInitial = false }: {
+  deferInitial?: boolean; deniedPage?: { slug: string; token: object; intent: number }; selectedPage?: string | null; pageHref?: (page: Page) => string; openPage?: (page: Page, event?: MouseEvent<HTMLAnchorElement>) => void; onAccessLost?: () => void;
   source: string; seed?: PageListResult; endpoint?: string; authority: object; filter: PageFilter;
   setFilter: (filter: PageFilter) => void; query: string; locale: Locale; loadPages?: PageLoader;
 }) {
@@ -107,10 +110,24 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
   const clock = useMemo(() => createCalendarClock(initialNow), [initialNow]);
   const now = useSyncExternalStore(clock.subscribe, clock.get, clock.server);
   const condition = `${filter}|${zone}|${calendarDay(now, zone) ?? ""}`;
-  const { state, snapshot, refresh, more } = usePageList(source, seed, endpoint, authority, condition, loadPages);
+  const { state, snapshot, acquisition, issuedSequence, refresh, more } = usePageList(source, seed, endpoint, authority, condition, loadPages, deferInitial);
+  useEffect(() => { if (["denied", "unavailable", "unconfigured"].includes(state.kind)) onAccessLost?.(); }, [state.kind, onAccessLost]);
   const [hadMore, setHadMore] = useState(false);
   if (snapshot?.range === "more" && !hadMore) setHadMore(true);
-  const rows = snapshot?.pages.filter(page => matchesCalendarFilter(page.createdAt, filter, zone, now)) ?? [];
+  const [restrictions, setRestrictions] = useState<{ acquisition: typeof acquisition; rows: { slug: string; afterGeneration: number }[]; token?: object; intent?: number }>({ acquisition, rows: [] });
+  let currentRestrictions = restrictions;
+  if (acquisition !== restrictions.acquisition && state.kind === "success") {
+    // Returned identity and a post-restriction request are both required. Carried append rows,
+    // old in-flight replies and server seeds without initiation proof cannot restore access.
+    const returned = new Set(acquisition?.references);
+    const generation = acquisition?.generation;
+    currentRestrictions = { ...restrictions, acquisition, rows: restrictions.rows.filter(row => generation == null || generation <= row.afterGeneration || !snapshot?.pages.some(page => page.slug === row.slug && returned.has(pageReference(page)))) }; setRestrictions(currentRestrictions);
+  }
+  if (deniedPage && (currentRestrictions.token !== deniedPage.token || currentRestrictions.intent !== deniedPage.intent)) {
+    currentRestrictions = { ...currentRestrictions, token: deniedPage.token, intent: deniedPage.intent, rows: [...currentRestrictions.rows.filter(row => row.slug !== deniedPage.slug), { slug: deniedPage.slug, afterGeneration: issuedSequence }] };
+    setRestrictions(currentRestrictions);
+  }
+  const rows = snapshot?.pages.filter(page => !currentRestrictions.rows.some(row => row.slug === page.slug) && matchesCalendarFilter(page.createdAt, filter, zone, now)) ?? [];
   const excludesUnknownDates = filter !== "all" && snapshot?.pages.some(page => !page.createdAt || calendarDay(page.createdAt, zone) === null);
   const canRead = !!endpoint || !!loadPages;
   const issue = state.kind === "failure" ? state.reason === "busy" ? t.busy : t.failure
@@ -118,10 +135,10 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
     : state.kind === "unknown" ? t.unsupported : state.kind === "unconfigured" ? t.unconfigured : null;
   return <section className="page-list" aria-labelledby="pages-title" aria-busy={state.kind === "loading"}>
     <div className="page-board">
-    <div className="pages-toolbar"><h2 id="pages-title">{t.title}</h2><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} /><ContextHelp locale={locale} label={t.dateHelp} title={t.added}><p>{t.meaning}</p><p>{t.coverage}</p><p>{t.offsets}</p></ContextHelp>
+    <div className="pages-toolbar"><h2 id="pages-title" tabIndex={-1}>{t.title}</h2><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} /><ContextHelp locale={locale} label={t.dateHelp} title={t.added}><p>{t.meaning}</p><p>{t.coverage}</p><p>{t.offsets}</p></ContextHelp>
       {canRead && <form className="page-refresh" action="/" method="get" onSubmit={event => { if (enhanced) { event.preventDefault(); refresh(); } }}>
-        {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "added").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
-        <button type="submit" aria-disabled={state.kind === "loading"}>{t.refresh}</button>
+        {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "added" || key === "page" || key === "view" || key === "reading").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
+        <button type="submit" aria-disabled={state.kind === "loading" || (deferInitial && !snapshot)}>{t.refresh}</button>
       </form>}
     </div>
     <div role="status" aria-live="polite" aria-atomic="true" className="page-status">
@@ -132,7 +149,11 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
     </div>
     {snapshot && <div className="page-table"><div className="table-scroll" role="region" aria-label={t.caption} tabIndex={0}>
       <table><colgroup><col /><col className="page-kind-column" /><col className="page-time-column" /><col className="page-time-column" /></colgroup><caption className="sr-only">{t.caption}</caption><thead><tr><th scope="col">{t.titleColumn}</th><th scope="col">{t.kind}</th><th scope="col" aria-label={t.added}>{t.added}</th><th scope="col">{t.changed}</th></tr></thead>
-        <tbody>{rows.map(page => <tr key={pageReference(page)}><th scope="row">{page.title.trim() ? page.title : page.slug}
+        <tbody>{rows.map(page => <tr key={pageReference(page)} className={selectedPage === page.slug ? "page-row-selected" : undefined} onClick={event => {
+          if (!openPage || !boundedPageSlug(page.slug) || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || window.getSelection()?.toString()) return;
+          if ((event.target as Element).closest("a,button,input,select,textarea,summary,details,label")) return;
+          openPage(page);
+        }}><th scope="row">{pageHref && boundedPageSlug(page.slug) ? <a id={pageRowId(page)} href={pageHref(page)} onClick={event => openPage?.(page, event)}>{page.title.trim() ? page.title : page.slug}</a> : page.title.trim() ? page.title : page.slug}
           {rows.filter(candidate => (candidate.title.trim() ? candidate.title : candidate.slug) === (page.title.trim() ? page.title : page.slug)).length > 1 && <small className="page-slug">{page.slug}</small>}
           <details className="page-observation"><summary aria-label={`${t.pageInformation}: ${page.title.trim() ? page.title : page.slug} · ${page.slug}`}>{t.pageInformation}</summary><small className="page-slug">{page.slug}</small>{page.detailObservation && <><span>{t.detailObservation}</span><Interval value={page.detailObservation} locale={locale} /></>}</details></th>
           <td>{page.kind}</td><td><PageTime value={page.createdAt} availability={page.creationAvailability} locale={locale} /></td><td><PageTime value={page.updatedAt} availability={page.modificationAvailability} locale={locale} /></td></tr>)}</tbody>

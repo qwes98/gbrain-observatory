@@ -60,7 +60,7 @@ Folder and Git are independently nullable. Federated, strategy, page count and o
 
 The installed public-interface investigation on 2026-10-30 verified version 0.60.323.0 (31ms), catalog discovery (161ms), and a four-row list (207ms). Only schema/count/timing evidence was retained. Synthetic browser and fake-CLI evidence remains separate from installed-adapter validation and physical-device acceptance.
 
-Review hardening preserves source selection and expansion through both language and time-zone submissions. Enhanced submissions reconcile the existing screen in place; native submissions use validated internal redirects. Transient server results retain a permissible previous observation and a surviving refresh; authoritative results supersede older requests. Source navigation limits expansion query data to leave a total navigation budget of 1,024 characters. Native GET refresh uses the same authenticated page; enhanced refresh uses POST with a 60-second client transport deadline, above the server's three-command execution budget. Empty or whitespace-only names use the original Source ID for presentation. Initial reads use ordinary server rendering and browser navigation progress, preserving correct native connection forms in a single acquisition.
+Review hardening preserves source selection and expansion through both language and time-zone submissions. Enhanced submissions reconcile the existing screen in place; native submissions use validated internal redirects. Transient server results retain a permissible previous observation and a surviving refresh; authoritative results supersede older requests. Source-only navigation limits expansion query data within 1,024 characters; combined Page identity/view navigation remains bounded within 2,048 characters. Native GET refresh uses the same authenticated page; enhanced refresh uses POST with a 60-second client transport deadline, above the server's three-command execution budget. Empty or whitespace-only names use the original Source ID for presentation. Initial reads use ordinary server rendering and browser navigation progress, preserving correct native connection forms in a single acquisition.
 
 Final Story 1.4 verification passed typecheck, lint, production build, 134 synthetic browser checks and 40 operations checks. The final independent follow-up reported no actionable findings. The installed production Adapter separately returned four active sources at 2026-10-30T04:44:55.799Z in 1,224ms, preserving unknown registry coverage and synchronization outcomes. This was an Adapter validation, with no deployment, service restart or setting change; it does not establish physical-device acceptance.
 
@@ -99,10 +99,64 @@ navigation; enhanced filter controls preserve keyboard focus. Composite identity
 equal slugs from merging across Sources. Raw offset advances independently of
 deduplication. Observed end, the 100-candidate application cap and failure remain
 distinct, with explicit unknown coverage and concurrent-offset drift disclosures.
-Page bodies and Page-detail navigation remain Story 1.6 work.
+Page bodies are excluded from list results. The separate detail acquisition below owns Page reading.
 
 `tests/operations/gbrain-pages.test.mjs` and the Page browser tests use isolated
 synthetic CLI/fixture data. Executed results and separately sanitized installed
 Adapter evidence are recorded in Story 1.5's Implementation Notes. Test presence,
 historical live samples and screenshot/axe checks do not establish physical-device,
 assistive-technology or real per-source authorization acceptance.
+
+
+## Exact Page reading (Story 1.6)
+
+`POST /api/page-detail` authorizes the owner and Origin before reading a bounded
+JSON body containing only the canonical Source reference and slug. Direct/native
+page URLs use the same composition and exact public reader after owner validation.
+The adapter validates the installed version, safe catalog and current Source
+before calling `get_page` with `source_id`, exact `slug` and `fuzzy: false`.
+Bodies stay in transient detail results; list DTOs continue to discard bodies and
+frontmatter. Every response remains private/no-store.
+
+The public `compiled_truth` and `timeline` sections retain their original text.
+Protected bodies are not recovered through files, DBs or alternate interfaces.
+Partial/outline/window/continuation responses remain partial; verified public
+window text is displayed as an excerpt. A valid public facts fence contributes
+Page-local rows preserving claims, kinds and supplied fields. Row numbers are not
+Fact IDs. Finding a claim in its original public table identifies a location in
+this Page, not direct Fact supporting evidence. Missing verified fences in a full
+public body mean only that no public memory section was found; protected,
+malformed and partial sections leave memory linkage unknown. No recall is run.
+
+`get_backlinks` is fixed to the current Source/slug and a limit of ten. Each
+returned target endpoint must match this Page. A candidate origin is linked only
+when its Source is currently allowed and its own exact `get_page` confirms its
+identity/title. Identity-union, inaccessible, mismatched and unverified endpoints
+are omitted with a partial state; truncation and continuation are preserved
+without following cursors or fetching more results automatically.
+
+Detail operations share the single process lease and existing child timeout,
+byte and cleanup policies. The complete operation has a 45-second budget;
+client transport stops after 60 seconds and requires explicit reopening after
+failure. The UI uses the same result for panel/full reading, native radio views
+and bounded identity/view URLs. History contains position/focus metadata only.
+Permission/Source changes discard the affected data and block late responses.
+Raw HTML, scripts, media and local paths remain inert; safe external hyperlinks
+require explicit activation and do not send a referrer.
+
+Synthetic fixtures, fake-CLI operations and configured native browser checks are
+separate from installed-adapter evidence and physical-device acceptance. Current
+executed verification and any unavailable positive live facts/backlink samples
+are recorded in the Story 1.6 implementation/evidence documents.
+
+
+Review hardening bounds navigation using the actual URLSearchParams serializer,
+retains Page/view/full identity through native refresh and skips the hidden Page
+list on direct full reading. A newly returned Page identity can remove a local
+exclusion only when its acquisition began after that exclusion; carried append
+rows and older delayed responses cannot reauthorize it. Current Source authority
+also removes affected cached/late backlinks while preserving a still-permitted
+main Page. Visible reference coverage remains capped at ten candidates with total
+coverage unknown; public window excerpts and failed references keep their distinct
+states. The review patch uses focused file-level regressions; aggregate verification
+is recorded separately by the coordinating build workflow.

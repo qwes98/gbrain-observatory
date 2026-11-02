@@ -13,6 +13,8 @@ const supportedEnums: Record<string, readonly string[]> = {
   body: ["auto", "full", "none", "outline", "window"],
   view: ["read", "markdown"],
   min_trust: ["user_confirmed", "operator_curated", "tool_observed", "agent_written", "unknown", "external_untrusted"],
+  status: ["live", "all"],
+  group: ["page"],
 };
 function safeProperty(value: unknown, type: string, name: string): boolean {
   if (!record(value) || value.type !== type || (value.description !== undefined && typeof value.description !== "string")) return false;
@@ -28,7 +30,7 @@ function safeProperty(value: unknown, type: string, name: string): boolean {
 }
 
 /** Validate every advertised parameter against supported public metadata, including unused options. */
-function safeCapability(value: unknown, name: string, declared: Record<string, string>, used: string[], required: string[]): boolean {
+export function safeCapability(value: unknown, name: string, declared: Record<string, string>, used: string[], required: string[]): boolean {
   if (!Array.isArray(value)) return false;
   const candidates = value.filter(item => record(item) && item.name === name);
   if (candidates.length !== 1) return false;
@@ -53,7 +55,7 @@ export function hasSafePageCapabilities(value: unknown): boolean {
 function hasSafeListCapability(value: unknown): boolean {
   return safeCapability(value, "list_pages", listParameters, ["source_id", "sort", "limit", "offset"], []);
 }
-function hasSafeDetailCapability(value: unknown): boolean {
+export function hasSafeDetailCapability(value: unknown): boolean {
   return safeCapability(value, "get_page", detailParameters, ["source_id", "slug", "fuzzy"], ["slug"]);
 }
 

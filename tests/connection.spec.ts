@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { localeCookie, sourceMessages, pageMessages, type Locale } from '../src/i18n/messages';
+import { localeCookie, sourceMessages, pageMessages, readerMessages, type Locale } from '../src/i18n/messages';
 import { sourceReference } from '../src/contracts/sources';
 import { timeZoneCookie } from '../src/i18n/time-zone';
 
@@ -530,7 +530,8 @@ test.describe('configured connection boundary', () => {
     const t = pageMessages.en;
     await expect(pages.getByRole('table').locator('tbody tr')).toHaveCount(10);
     await expect(pages.getByRole('row').filter({ hasText: '원본 Page 0' }).getByRole('cell').nth(1).locator('time')).toHaveAttribute('datetime', '2026-10-31T00:30:00Z');
-    await expect(pages.getByRole('link')).toHaveCount(0);
+    await expect(pages.getByRole('link')).toHaveCount(10);
+    await expect(pages.getByRole('link', { name: '원본 Page 0', exact: true })).toHaveAttribute('href', /page=page-000/);
     await scenario('pages-more-failure');
     await pages.getByRole('button', { name: t.more, exact: true }).click();
     await expect(pages).toContainText(t.failure);
@@ -635,4 +636,146 @@ test.describe('configured connection boundary', () => {
 
     } finally { await context.close(); }
   });
+  test('Page reader POST rejects copied command, identity, oversized body and hostile Origin before spawning', async ({ request }) => {
+    await scenario('detail-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    await clearCalls();
+    for (const mode of ['other', 'missing', 'origin', 'host']) {
+      const denied = await request.post(`${origin}/api/page-detail`, { headers: { origin, 'x-observatory-test-access': mode }, data: { source, slug: 'page-000' } });
+      expect(denied.status()).toBe(403);
+      expect(denied.headers()['cache-control']).toContain('private, no-store');
+    }
+    const noOrigin = await request.post(`${origin}/api/page-detail`, { data: { source, slug: 'page-000' } });
+    expect(noOrigin.status()).toBe(403);
+    for (const data of [{ source, slug: 'page-000', command: 'recall' }, { source, slug: '' }, { source: '/bin/sh', slug: 'page-000' }, { source, slug: 'x'.repeat(5000) }]) {
+      expect((await request.post(`${origin}/api/page-detail`, { headers: { origin }, data })).status()).toBe(400);
+    }
+    const wrongType = await request.post(`${origin}/api/page-detail`, { headers: { origin, 'content-type': 'text/plain' }, data: JSON.stringify({ source, slug: 'page-000' }) });
+    expect(wrongType.status()).toBe(400);
+    expect(await calls()).toHaveLength(0);
+    const response = await request.post(`${origin}/api/page-detail?command=recall`, { headers: { origin }, data: { source, slug: 'page-000' } });
+    expect(response.status()).toBe(200);
+    expect(response.headers()['cache-control']).toContain('private, no-store');
+    const result = await response.json();
+    expect(result.kind).toBe('success');
+    expect(result.snapshot.memories.rows[0].claim).toBe('원본 기억 / original claim');
+    expect((await calls()).filter(call => call.args[1] === 'get_backlinks')).toHaveLength(1);
+    expect((await calls()).every(call => !['recall', 'get_fact'].includes(call.args[1]))).toBe(true);
+  });
+
+  for (const locale of ['en', 'ko'] as Locale[]) test(`native ${locale} Page reading survives direct navigation, settings and full view`, async ({ browser }) => {
+    await scenario('detail-success');
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      await context.addCookies([{ name: localeCookie, value: locale, url: origin }, { name: timeZoneCookie, value: 'UTC', url: origin }]);
+      const native = await context.newPage(); await native.goto(origin);
+      await native.locator('.table-board table').getByRole('link').first().click();
+      await native.locator('.page-list tbody tr').first().getByRole('link').click();
+      const reader = native.locator('.page-reader'); const t = readerMessages[locale];
+      await expect(reader).toContainText('원본 기억 / original claim');
+      await expect(reader.getByRole('button', { name: t.showInBody, exact: true })).toHaveCount(0);
+      const identity = new URL(native.url()).searchParams.get('page');
+      expect(identity).toBe('page-000');
+      await reader.locator('.reader-labels').getByText(t.body, { exact: true }).click();
+      await expect(reader).toContainText('원본 본문 / original body');
+      await reader.getByRole('button', { name: t.fullReading, exact: false }).click();
+      await expect(reader).toHaveClass(/page-reader-full/);
+      expect(new URL(native.url()).searchParams.get('page')).toBe(identity);
+      expect(new URL(native.url()).searchParams.get('view')).toBe('body');
+      await native.getByRole('combobox', { name: sourceMessages[locale].timeZone, exact: true }).selectOption('Asia/Seoul');
+      await native.getByRole('button', { name: sourceMessages[locale].applyTimeZone, exact: true }).click();
+      expect(new URL(native.url()).searchParams.get('page')).toBe(identity);
+      expect(new URL(native.url()).searchParams.get('reading')).toBe('full');
+      await expect(reader).toContainText('원본 기억 / original claim');
+      const nextLocale = locale === 'en' ? 'ko' : 'en';
+      await native.getByRole('combobox', { name: sourceMessages[locale].language, exact: true }).selectOption(nextLocale);
+      await native.getByRole('button', { name: sourceMessages[locale].applyLanguage, exact: true }).click();
+      await expect(native.locator('html')).toHaveAttribute('lang', nextLocale);
+      expect(new URL(native.url()).searchParams.get('page')).toBe(identity);
+      await expect(reader).toContainText('원본 기억 / original claim');
+    } finally { await context.close(); }
+  });
+
+  test('direct full reader SSR defers the hidden Page list until native list return', async ({ browser, request }) => {
+    await scenario('detail-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    await clearCalls();
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      await context.addCookies([{ name: localeCookie, value: 'en', url: origin }]);
+      const page = await context.newPage();
+      await page.goto(`${origin}/?${new URLSearchParams({ source, page: 'page-000', view: 'body', reading: 'full' })}`);
+      const reader = page.locator('.page-reader-full');
+      await expect(reader).toContainText('원본 본문 / original body');
+      expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(0);
+      const details = (await calls()).filter(call => call.args[1] === 'get_page').map(call => JSON.parse(call.args[2]));
+      expect(details[0]).toEqual({ source_id: 'example', slug: 'page-000', fuzzy: false });
+      expect(details.filter(detail => detail.slug === 'page-000')).toHaveLength(1);
+      await reader.getByRole('link', { name: readerMessages.en.returnToList, exact: true }).click();
+      await expect(page.locator('.page-list tbody tr')).toHaveCount(10);
+      expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(1);
+      expect(new URL(page.url()).searchParams.has('page')).toBe(false);
+    } finally { await context.close(); }
+  });
+
+  test('native Source refresh keeps the exact open Page and selected body view', async ({ browser, request }) => {
+    await scenario('detail-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      await context.addCookies([{ name: localeCookie, value: 'en', url: origin }]);
+      const page = await context.newPage();
+      await page.goto(`${origin}/?${new URLSearchParams({ source, page: 'page-000', view: 'body' })}`);
+      await expect(page.locator('.page-reader')).toContainText('원본 본문 / original body');
+      await clearCalls();
+      await page.getByRole('button', { name: sourceMessages.en.refresh, exact: true }).click();
+      await expect(page.locator('.page-reader')).toContainText('원본 본문 / original body');
+      expect(new URL(page.url()).searchParams.get('source')).toBe(source);
+      expect(new URL(page.url()).searchParams.get('page')).toBe('page-000');
+      expect(new URL(page.url()).searchParams.get('view')).toBe('body');
+      expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(1);
+    } finally { await context.close(); }
+  });
+
+  test('cross-Source reference reads its exact Page before any deferred background list without a busy retry', async ({ page }) => {
+    await scenario('detail-cross-source');
+    await page.goto(origin);
+    await page.locator('.table-board table').getByRole('link', { name: 'connection-private-source-name', exact: true }).click();
+    const pages = page.locator('.page-list'), t = readerMessages.en;
+    await expect(pages.locator('tbody tr')).toHaveCount(10);
+    await pages.locator('tbody tr').first().getByRole('link').click();
+    const reader = page.locator('.page-reader');
+    await expect(reader).toContainText('원본 기억 / original claim');
+    await reader.locator('.reader-labels').getByText(t.references, { exact: true }).click();
+    await expect(reader.getByRole('link', { name: 'Cross Source target', exact: false })).toBeVisible();
+    await clearCalls();
+    const detailResponses: string[] = [];
+    page.on('response', async response => {
+      if (new URL(response.url()).pathname === '/api/page-detail') detailResponses.push(await response.text());
+    });
+    await reader.getByRole('link', { name: 'Cross Source target', exact: false }).click();
+    await expect(reader.getByRole('heading', { name: 'Cross Source target', exact: true })).toBeVisible();
+    await expect(reader).not.toContainText(t.busy);
+    expect(JSON.parse(new URL(page.url()).searchParams.get('source')!)[1]).toBe('another');
+    expect(new URL(page.url()).searchParams.get('page')).toBe('cross-target');
+    await reader.locator('.reader-labels').getByText(t.body, { exact: true }).click();
+    await expect(reader).toContainText('Cross Source body another/cross-target');
+    const beforeClose = await calls();
+    expect(beforeClose.filter(call => call.args[1] === 'list_pages')).toHaveLength(0);
+    expect(beforeClose.filter(call => call.args[1] === 'get_page').map(call => JSON.parse(call.args[2]))).toEqual([{ source_id: 'another', slug: 'cross-target', fuzzy: false }]);
+    await expect.poll(() => detailResponses.length).toBe(1);
+    expect(JSON.parse(detailResponses[0]).kind).toBe('success');
+    await reader.getByRole('link', { name: t.close, exact: true }).click();
+    await expect(reader).toHaveCount(0);
+    await expect(pages.locator('tbody tr')).toHaveCount(10);
+    await expect(page.getByRole('heading', { name: 'Cross Source', exact: true })).toBeVisible();
+    const lists = (await calls()).filter(call => call.args[1] === 'list_pages');
+    expect(lists).toHaveLength(1);
+    expect(JSON.parse(lists[0].args[2])).toEqual({ source_id: 'another', sort: 'created_desc', limit: 10, offset: 0 });
+    expect(detailResponses).toHaveLength(1);
+  });
+
 });

@@ -330,3 +330,52 @@ const pagesKo: typeof pagesEn = {
   pageInformation: "페이지 정보", observation: "관찰 구간", listObservation: "목록 관찰", detailObservation: "상세 관찰", loaded: "불러옴", matching: "조건에 맞음",
 };
 export const pageMessages = { en: pagesEn, ko: pagesKo };
+
+const readerEn = {
+  title: "Page detail", memories: "Memories", body: "Body", references: "References", chooseView: "Page content",
+  fullReading: "Full page", close: "Close reader", returnToList: "Back to Pages", source: "Source", added: "Added to Brain", changed: "Last changed",
+  memoryTitle: "Public memories", bodyTitle: "Page body", referencesTitle: "Pages referencing this Page", showInBody: "Find in body",
+  memoryEmpty: "No public memory entries are available in this body.", memoryUnknown: "Public memory sections could not be confirmed.",
+  referencesEmpty: "No references in the returned range.", referencesPartial: "Some references could not be confirmed or were omitted.",
+  referencesFailed: "References could not be read.", referencesUnknown: "References could not be confirmed.",
+  loading: "Reading Page…", denied: "You cannot view this Page.", unavailable: "This Page is no longer available in the current scope.",
+  failure: "This Page could not be read. Open it again to retry manually.", busy: "Another GBrain read is running. Open this Page again when it finishes.",
+  unknown: "The public Page response could not be verified.", unconfigured: "The server connection is not ready to read this Page.",
+  partial: "Only part of the public body is available.", protected: "This body is protected and was not restored.", bodyUnknown: "The public body could not be confirmed.", bodyFailed: "The body could not be read.", bodyEmpty: "The public body is empty.",
+  compiledTruth: "Compiled body", timeline: "Timeline", window: "Public excerpt", notProvided: "Not provided", invalidTime: "Time could not be verified",
+  originalFields: "Original memory fields", originalLocation: "Original location help", originalLocationTitle: "Location within this Page",
+  originalLocationHelp: "Find in body locates the exact claim in this Page’s public memory table. Page row numbers and this location are not Fact IDs or direct supporting evidence.",
+  referenceScope: "Up to 10 candidates · Total coverage unknown",
+  rangeHelp: "Reference range help", rangeTitle: "Returned references", rangeHelpText: "At most 10 returned candidates are checked. Only verified Pages in permitted Sources are linked. This is not a total relationship count.",
+  omitted: "Omitted candidates", truncated: "More references may exist.", outside: "This Page is outside the current date condition.",
+  applyView: "Show selected view", skipToReader: "Skip to current Page", memory: "Memory",
+};
+const readerKo: typeof readerEn = {
+  title: "페이지 상세", memories: "기억", body: "본문", references: "참조", chooseView: "페이지 내용 선택",
+  fullReading: "전체 페이지", close: "읽기 닫기", returnToList: "페이지 목록으로 돌아가기", source: "소스", added: "Brain에 추가", changed: "마지막 변경",
+  memoryTitle: "공개된 기억", bodyTitle: "페이지 본문", referencesTitle: "이 페이지를 참조하는 페이지", showInBody: "본문에서 확인",
+  memoryEmpty: "이 본문에 공개된 기억 항목이 없어요.", memoryUnknown: "공개된 기억 구역을 확인하지 못했어요.",
+  referencesEmpty: "반환된 범위에 참조가 없어요.", referencesPartial: "일부 참조를 확인하지 못했거나 생략했어요.",
+  referencesFailed: "참조를 읽지 못했어요.", referencesUnknown: "참조를 확인하지 못했어요.",
+  loading: "페이지를 읽고 있어요…", denied: "이 페이지를 볼 권한이 없어요.", unavailable: "현재 범위에서 이 페이지를 볼 수 없어요.",
+  failure: "페이지를 읽지 못했어요. 다시 열어 수동으로 확인해 주세요.", busy: "다른 GBrain 조회가 진행 중이에요. 끝난 뒤 페이지를 다시 열어 주세요.",
+  unknown: "공개 페이지 응답을 검증하지 못했어요.", unconfigured: "서버 연결이 아직 이 페이지를 읽을 준비가 되지 않았어요.",
+  partial: "공개 본문의 일부만 제공됐어요.", protected: "보호된 본문은 복원하지 않았어요.", bodyUnknown: "공개 본문을 확인하지 못했어요.", bodyFailed: "본문을 읽지 못했어요.", bodyEmpty: "공개 본문이 비어 있어요.",
+  compiledTruth: "정리된 본문", timeline: "시간순 기록", window: "공개된 일부 본문", notProvided: "정보 미제공", invalidTime: "시각을 검증할 수 없음",
+  originalFields: "기억의 원본 필드", originalLocation: "원문 위치 도움말", originalLocationTitle: "이 페이지 안의 위치",
+  originalLocationHelp: "본문에서 확인은 이 페이지의 공개 기억 표에서 해당 문장의 정확한 위치를 찾아요. 페이지 내부 행 번호와 이 위치는 Fact ID나 개별 기억의 직접 근거가 아니에요.",
+  referenceScope: "최대 후보 10개 · 전체 범위 미확인",
+  rangeHelp: "참조 범위 도움말", rangeTitle: "반환된 참조", rangeHelpText: "반환된 후보를 최대 10개 확인해요. 허용된 소스에서 검증한 페이지만 연결하며 전체 관계 수는 아니에요.",
+  omitted: "생략된 후보", truncated: "참조가 더 있을 수 있어요.", outside: "현재 날짜 조건에서 제외된 페이지예요.",
+  applyView: "선택한 보기 표시", skipToReader: "현재 페이지 읽기로 건너뛰기", memory: "기억",
+};
+export const readerMessages = { en: readerEn, ko: readerKo };
+
+export const memoryKindMessages = {
+  en: { fact: "Record", belief: "Belief", preference: "Preference", event: "Event", commitment: "Commitment", idea: "Idea" },
+  ko: { fact: "기록", belief: "믿음", preference: "선호", event: "사건", commitment: "약속", idea: "아이디어" },
+};
+export function memoryKindLabel(locale: Locale, kind: string): string {
+  const key = kind.toLowerCase();
+  return Object.hasOwn(memoryKindMessages[locale], key) ? memoryKindMessages[locale][key as keyof typeof memoryKindMessages.en] : kind;
+}

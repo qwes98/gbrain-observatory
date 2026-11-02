@@ -24,7 +24,7 @@ export function useSourceNavigation(initialQuery: string) {
   const expanded = sourceNavigationParameters(selected, parameters.getAll("expanded")).getAll("expanded");
   function href(value: string | null) {
     const next = new URLSearchParams(query);
-    next.delete("source"); next.delete("expanded"); next.delete("added");
+    next.delete("source"); next.delete("expanded"); next.delete("added"); next.delete("page"); next.delete("view"); next.delete("reading");
     for (const [key, item] of sourceNavigationParameters(value, expanded, filter)) next.append(key, item);
     return `?${next}`;
   }
@@ -65,14 +65,14 @@ export function useSourceNavigation(initialQuery: string) {
     const next = expanded.includes(value) ? expanded.filter(item => item !== value) : [...expanded, value];
     url.searchParams.delete("expanded");
     for (const item of sourceNavigationParameters(selected, next).getAll("expanded")) url.searchParams.append("expanded", item);
-    window.history.replaceState({ sourceReturn: window.history.state?.sourceReturn }, "", url);
+    window.history.replaceState({ ...window.history.state, sourceReturn: window.history.state?.sourceReturn }, "", url);
     window.dispatchEvent(new Event(event));
   }
   function setFilter(value: "all" | "today" | "yesterday") {
     const url = new URL(window.location.href);
     url.searchParams.delete("added");
     if (value !== "all") url.searchParams.set("added", value);
-    window.history.pushState({ sourceReturn: window.history.state?.sourceReturn }, "", url);
+    window.history.pushState({ ...window.history.state, sourceReturn: window.history.state?.sourceReturn }, "", url);
     window.dispatchEvent(new Event(event));
   }
   return { selected, expanded, navigate, toggle, href, filter, setFilter };

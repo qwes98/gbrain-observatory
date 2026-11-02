@@ -1,33 +1,43 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PageListResult, PageSnapshot } from "../contracts/pages";
+import { pageReference, type PageListResult, type PageSnapshot } from "../contracts/pages";
 import { calendarDay } from "../i18n/time-zone";
 export type PageLoader = (request: { source: string; offset: number }) => Promise<PageListResult>;
 
 type State = PageListResult | { kind: "loading" } | { kind: "idle" };
-type Job = { offset: number; condition: string; authority: object; previous?: PageSnapshot; previousState: State };
+interface PageAcquisition { generation: number | null; references: string[] }
+type Job = { generation: number; offset: number; condition: string; authority: object; previous?: PageSnapshot; previousState: State };
 
 /** Page bodies never enter state or History. Jobs are tied to their exact authority and conditions. */
-export function usePageList(source: string, seed: PageListResult | undefined, endpoint: string | undefined, authority: object, condition: string, loadPages?: PageLoader) {
+export function usePageList(source: string, seed: PageListResult | undefined, endpoint: string | undefined, authority: object, condition: string, loadPages?: PageLoader, deferInitial = false) {
   const initial = seed?.kind === "success" && seed.snapshot.sourceReference !== source ? undefined : seed;
+  const startInitially = !initial && !deferInitial && !!(endpoint || loadPages);
   const [stored, setStored] = useState<{
     seed: PageListResult | undefined; authority: object; condition: string;
-    state: State; snapshot?: PageSnapshot; job: Job | null;
-  }>(() => ({ seed: initial, authority, condition, state: initial ?? (endpoint || loadPages ? { kind: "loading" } : { kind: "idle" }),
+    state: State; snapshot?: PageSnapshot; job: Job | null; deferred: boolean; issued: number; acquisition?: PageAcquisition;
+  }>(() => ({ seed: initial, authority, condition, state: initial ?? (!deferInitial && (endpoint || loadPages) ? { kind: "loading" } : { kind: "idle" }),
     snapshot: initial?.kind === "success" ? initial.snapshot : undefined,
-    job: !initial && (endpoint || loadPages) ? { offset: 0, authority, condition, previousState: { kind: "idle" } } : null }));
+    acquisition: initial?.kind === "success" ? { generation: null, references: initial.snapshot.pages.map(pageReference) } : undefined,
+    deferred: !initial && deferInitial && !!(endpoint || loadPages), issued: startInitially ? 1 : 0,
+    job: startInitially ? { generation: 1, offset: 0, authority, condition, previousState: { kind: "idle" } } : null }));
   let current = stored;
   if (stored.seed !== initial || stored.authority !== authority) {
     const newSeed = stored.seed !== initial;
     const purge = newSeed && (initial?.kind === "denied" || initial?.kind === "unavailable" || initial?.kind === "unconfigured");
     const snapshot = newSeed && initial?.kind === "success" ? initial.snapshot : purge ? undefined : stored.snapshot;
-    current = { seed: initial, authority, condition, snapshot, job: null,
+    current = { seed: initial, authority, condition, snapshot, job: null, issued: stored.issued,
+      acquisition: newSeed && initial?.kind === "success" ? { generation: null, references: initial.snapshot.pages.map(pageReference) } : purge ? undefined : stored.acquisition, deferred: newSeed && !!initial ? false : stored.deferred,
       state: newSeed && initial ? initial : stored.job?.previousState ?? stored.state };
     setStored(current);
   } else if (stored.condition !== condition) {
     // Display conditions do not change the unfiltered Source operation or its acquisition status.
     current = { ...stored, condition };
+    setStored(current);
+  }
+  if (current.deferred && !deferInitial && !current.job && (endpoint || loadPages)) {
+    // The reader owns the shared lease first; closing it explicitly enters the empty list.
+    current = { ...current, deferred: false, issued: current.issued + 1, state: { kind: "loading" }, job: { generation: current.issued + 1, offset: 0, authority, condition, previousState: current.state } };
     setStored(current);
   }
   const { job } = current;
@@ -67,7 +77,7 @@ export function usePageList(source: string, seed: PageListResult | undefined, en
           })], observation: { startedAt: previous.observation.startedAt, completedAt: snapshot.observation.completedAt },
             listObservation: { startedAt: previous.listObservation.startedAt, completedAt: snapshot.listObservation.completedAt } };
         }
-        return { ...value, job: null, snapshot, state: { kind: "success", snapshot } };
+        return { ...value, job: null, snapshot, acquisition: { generation: job.generation, references: result.snapshot.pages.map(pageReference) }, state: { kind: "success", snapshot } };
       }
       return { ...value, job: null, snapshot, state: result };
     })).finally(() => clearTimeout(timer));
@@ -75,10 +85,10 @@ export function usePageList(source: string, seed: PageListResult | undefined, en
   }, [job, endpoint, source, loadPages]);
 
   function acquire(offset: number) {
-    if ((!endpoint && !loadPages) || current.job) return;
-    setStored(value => ({ ...value, state: { kind: "loading" }, job: { offset, authority, condition, previous: value.snapshot, previousState: value.state } }));
+    if ((!endpoint && !loadPages) || current.job || (deferInitial && !current.snapshot)) return;
+    setStored(value => ({ ...value, deferred: false, issued: value.issued + 1, state: { kind: "loading" }, job: { generation: value.issued + 1, offset, authority, condition, previous: value.snapshot, previousState: value.state } }));
   }
-  return { state: current.state, snapshot: current.snapshot, refresh: () => acquire(0), more: () => {
+  return { state: current.state, snapshot: current.snapshot, acquisition: current.acquisition, issuedSequence: current.issued, refresh: () => acquire(0), more: () => {
     if (current.snapshot?.range === "more") acquire(current.snapshot.nextOffset);
   } };
 }

@@ -98,3 +98,37 @@ overall deadline is separately asserted. These checks use temporary fake CLI
 files and never invoke the installed GBrain executable. Installed Adapter evidence
 belongs separately in the story record and never substitutes for synthetic matrix
 coverage or physical-device/assistive-technology acceptance.
+
+
+## Page reading coverage (Story 1.6)
+
+`page-detail.spec.ts` exercises the production Page reader with isolated
+`fixtures/page-detail-data.ts` content. It covers exact Page selection,
+memories/body/references, verified original-location highlighting, safe raw text,
+shared panel/full state, bounded navigation, authority/late-response discards,
+keyboard focus and mobile background exclusion. Focused English/Korean checks
+use independent fixed translation examples, 320px/200% text and axe. Source
+content remains multilingual original data independent of UI translations.
+
+`operations/gbrain-page-detail.test.mjs` runs the actual transpiled adapter
+against the public CLI double. It covers catalog safety, fixed exact operations,
+public facts-fence parsing, malformed/partial/protected bodies, exact backlink
+endpoints and bounded verification, sanitized failures and shared execution
+budgets. The configured transport/native settings checks remain in the serial
+`connection.spec.ts` group, using its existing operator scenario file. Do not run
+another configured suite with independent scenario mutation concurrently.
+
+Run the registered `npm run verify` entry point for integrated checks. Synthetic
+positive facts/backlink coverage does not establish positive live samples,
+physical-device acceptance, assistive-technology acceptance or full WCAG
+conformance. Installed-adapter observations and direct mockup comparisons belong
+in the Story 1.6 evidence, with private source text and identifiers excluded.
+
+
+Story 1.6 review regressions additionally distinguish freshly returned rows from
+append carry and require the list request to begin after a Page exclusion. They
+cover cached/late cross-Source permission removal, explicit retry of a seeded
+error, actual query serialization/settings roundtrips, exact public window text,
+failed-reference disclosure, and unoccluded background controls at 1440/958px.
+Configured native checks assert hidden full-mode lists remain deferred, refresh
+preserves Page/view, and onClick-only location controls are absent without JS.
