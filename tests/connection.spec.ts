@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { localeCookie, sourceMessages, pageMessages, readerMessages, type Locale } from '../src/i18n/messages';
+import { localeCookie, sourceMessages, pageMessages, readerMessages, factMessages, type Locale } from '../src/i18n/messages';
 import { sourceReference } from '../src/contracts/sources';
 import { timeZoneCookie } from '../src/i18n/time-zone';
 
@@ -776,6 +776,219 @@ test.describe('configured connection boundary', () => {
     expect(lists).toHaveLength(1);
     expect(JSON.parse(lists[0].args[2])).toEqual({ source_id: 'another', sort: 'created_desc', limit: 10, offset: 0 });
     expect(detailResponses).toHaveLength(1);
+  });
+
+  test('Fact POST endpoints validate owner/Origin and exact bounded identity before fixed Source-scoped recall', async ({ request }) => {
+    await scenario('facts-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    await clearCalls();
+    for (const path of ['facts', 'fact-detail']) {
+      const body = path === 'facts' ? { source } : { source, id: '17' };
+      const denied = await request.post(`${origin}/api/${path}`, { headers: { origin: 'https://attacker.invalid' }, data: body });
+      expect(denied.status()).toBe(403); expect(await denied.text()).not.toContain('original public fact');
+      expect(denied.headers()['cache-control']).toContain('no-store');
+      const invalid = await request.post(`${origin}/api/${path}`, { headers: { origin }, data: { ...body, executable: '/bin/sh' } });
+      expect(invalid.status()).toBe(400);
+    }
+    expect(await calls()).toHaveLength(0);
+    const list = await request.post(`${origin}/api/facts`, { headers: { origin }, data: { source } });
+    expect(list.headers()['cache-control']).toContain('private'); expect(list.headers()['cache-control']).toContain('no-store');
+    const result = await list.json(); expect(result.kind).toBe('success'); expect(result.snapshot.rows[0].id).toBe('17');
+    expect(result.snapshot.coverage).toBe('unknown'); expect(result.snapshot.continuation).toBe('unsupported');
+    const detail = await (await request.post(`${origin}/api/fact-detail`, { headers: { origin }, data: { source, id: '17' } })).json();
+    expect(detail.kind).toBe('success'); expect(detail.snapshot.fact.id).toBe('17'); expect(detail.snapshot.evidence.availability).toBe('available');
+    expect(detail.snapshot.evidence.level).toBe('context-page');
+    const recall = (await calls()).filter(call => call.args[3] === 'recall'); expect(recall).toHaveLength(2);
+    expect(recall.every(call => call.args[2] === 'example' && JSON.parse(call.args[4]).source_id === 'example')).toBe(true);
+  });
+
+  test('hydrated Source memories render exact Fact and provenance from the actual POST transports', async ({ page }) => {
+    await scenario('facts-success');
+    await page.goto(origin);
+    await page.locator('.desktop-navigation .source-navigation-link').first().click();
+    await expect(page.locator('.page-list [role="status"]')).toContainText(pageMessages.en.complete);
+    const source = new URL(page.url()).searchParams.get('source')!;
+    const [namespace, sourceId] = JSON.parse(source) as [string, string];
+    await clearCalls();
+
+    const listPending = page.waitForResponse(response => new URL(response.url()).pathname === '/api/facts');
+    await page.getByRole('link', { name: factMessages.en.load, exact: true }).click();
+    const listResponse = await listPending;
+    expect(listResponse.request().method()).toBe('POST');
+    expect(listResponse.request().postDataJSON()).toEqual({ source });
+    expect(listResponse.status()).toBe(200);
+    const list = await listResponse.json();
+    expect(list.kind).toBe('success');
+    expect(list.snapshot.sourceReference).toBe(source);
+    expect(list.snapshot.rows).toHaveLength(1);
+    const expectedFact = {
+      namespace, sourceId, id: '17', content: '원본 기억 🌿 / original public fact', kind: 'belief',
+      sourceDescription: 'mcp:put_page', provenance: null, context: 'notes/fact-context — extracted from original', contextAvailability: 'available',
+    };
+    expect(list.snapshot.rows[0]).toMatchObject(expectedFact);
+    const factLink = page.locator('.fact-list tbody').getByRole('link', { name: expectedFact.content, exact: true });
+    await expect(factLink).toBeVisible();
+    await expect(page.locator('.fact-list tbody')).toContainText(expectedFact.sourceDescription);
+
+    const detailPending = page.waitForResponse(response => new URL(response.url()).pathname === '/api/fact-detail');
+    await factLink.click();
+    const detailResponse = await detailPending;
+    expect(detailResponse.request().method()).toBe('POST');
+    expect(detailResponse.request().postDataJSON()).toEqual({ source, id: '17' });
+    expect(detailResponse.status()).toBe(200);
+    const detail = await detailResponse.json();
+    expect(detail.kind).toBe('success');
+    expect(detail.snapshot.fact).toMatchObject(expectedFact);
+    expect(detail.snapshot.contextPage).toMatchObject({ availability: 'available', page: { namespace, sourceId, slug: 'notes/fact-context' } });
+    expect(detail.snapshot.storedPage).toMatchObject({ availability: 'available', page: { namespace, sourceId, slug: 'notes/fact-stored' } });
+    expect(detail.snapshot.evidence).toMatchObject({
+      availability: 'available', level: 'context-page', page: { namespace, sourceId, slug: 'notes/fact-original' },
+      quote: '원문 인용 🌿 / exact original quote',
+    });
+    const reader = page.locator('.fact-reader');
+    await expect(reader).toContainText(expectedFact.content);
+    await expect(reader).toContainText(factMessages.en.pageQuote);
+    await expect(reader).toContainText(detail.snapshot.evidence.quote);
+    await expect(reader.getByRole('link', { name: 'Verified notes/fact-context', exact: false })).toBeVisible();
+    await expect(reader.getByRole('link', { name: 'Verified notes/fact-original', exact: false })).toBeVisible();
+    expect(new URL(page.url()).searchParams.get('fact')).toBe('17');
+    const recall = (await calls()).filter(call => call.args[3] === 'recall');
+    expect(recall).toHaveLength(2);
+    expect(recall.every(call => call.args[2] === sourceId && JSON.parse(call.args[4]).source_id === sourceId)).toBe(true);
+  });
+
+  test('hydrated Fact Find and reload restore History presentation without hydration or page errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    await scenario('facts-success');
+    await page.goto(origin);
+    await page.locator('.desktop-navigation .source-navigation-link').first().click();
+    await expect(page.locator('.page-list [role="status"]')).toContainText(pageMessages.en.complete);
+    await page.getByRole('link', { name: factMessages.en.load, exact: true }).click();
+    await page.locator('.fact-list tbody').getByRole('link', { name: '원본 기억 🌿 / original public fact', exact: true }).click();
+    const reader = page.locator('.fact-reader');
+    const find = reader.getByRole('button', { name: factMessages.en.showInBody, exact: true });
+    await find.click();
+    await expect(reader.locator('#fact-verified-passage')).toHaveText('원문 인용 🌿 / exact original quote');
+    await expect(reader.locator('#fact-verified-passage')).toBeFocused();
+    expect(await page.evaluate(() => history.state.factPresentation)).toMatchObject({ bodyOpen: true, highlight: true });
+    await page.reload();
+    // This enhanced control proves hydration has completed before checking errors.
+    await expect(find).toBeVisible();
+    await expect(reader).toContainText('원본 기억 🌿 / original public fact');
+    await expect(reader.locator('#fact-source-body')).toHaveAttribute('open', '');
+    await expect(reader.locator('#fact-verified-passage')).toHaveText('원문 인용 🌿 / exact original quote');
+    await find.click();
+    await expect(reader.locator('#fact-verified-passage')).toBeFocused();
+    expect(new URL(page.url()).searchParams.get('fact')).toBe('17');
+    expect(errors).toEqual([]);
+  });
+
+  for (const locale of ['en', 'ko'] as const) for (const mode of ['panel', 'full'] as const) test(`native ${locale} mobile ${mode} Source recovery GET retains the exact pending Fact and parent`, async ({ browser, request }) => {
+    await scenario('facts-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    await scenario('nonzero');
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 320, height: 900 } });
+    try {
+      await context.addCookies([{ name: localeCookie, value: locale, url: origin }]);
+      const native = await context.newPage();
+      const query = new URLSearchParams({ source, expanded: source, facts: '1', fact: '17', page: 'parent-page', view: 'references', reading: 'full', added: 'yesterday' });
+      if (mode === 'full') query.set('factReading', 'full');
+      await native.goto(`${origin}/?${query}`);
+      const reader = native.locator('.fact-reader');
+      await expect(reader).toContainText(sourceMessages[locale].issues.failure.reason);
+      const recover = reader.getByRole('button', { name: sourceMessages[locale].refresh, exact: true });
+      await expect(recover).toBeVisible();
+      expect(await recover.evaluate(button => (button as HTMLButtonElement).disabled)).toBe(false);
+      expect(await recover.evaluate(button => button.closest('form')?.method)).toBe('get');
+      const hidden = await reader.locator('form input[type="hidden"]').evaluateAll(inputs => Object.fromEntries(inputs.map(input => [(input as HTMLInputElement).name, (input as HTMLInputElement).value])));
+      for (const [key, value] of query) expect(hidden[key]).toBe(value);
+      await scenario('facts-success');
+      await recover.click();
+      await expect(reader).toContainText('원본 기억 🌿 / original public fact');
+      for (const [key, value] of query) expect(new URL(native.url()).searchParams.get(key)).toBe(value);
+      expect((await calls()).filter(call => call.args[3] === 'recall')).toHaveLength(1);
+      expect((await calls()).filter(call => call.args[1] === 'list_pages')).toHaveLength(0);
+    } finally { await context.close(); }
+  });
+
+  test('direct native Fact detail suppresses parent Page and list acquisitions until the reader returns', async ({ browser, request }) => {
+    await scenario('facts-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]); await clearCalls();
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      await context.addCookies([{ name: localeCookie, value: 'en', url: origin }]);
+      const page = await context.newPage();
+      await page.goto(`${origin}/?${new URLSearchParams({ source, page: 'parent-page', view: 'body', facts: '1', fact: '17', factReading: 'full' })}`);
+      await expect(page.locator('.fact-reader')).toContainText('원본 기억 🌿 / original public fact');
+      await expect(page.locator('.page-reader:not(.fact-reader)')).toHaveCount(0);
+      const invoked = await calls();
+      expect(invoked.filter(call => call.args[1] === 'list_pages')).toHaveLength(0);
+      expect(invoked.filter(call => call.args[3] === 'recall')).toHaveLength(1);
+      expect(invoked.filter(call => call.args[1] === 'get_page').some(call => JSON.parse(call.args[2]).slug === 'parent-page')).toBe(false);
+      await page.locator('.fact-reader').getByRole('link', { name: factMessages.en.returnToList, exact: true }).click();
+      expect(new URL(page.url()).searchParams.get('page')).toBe('parent-page');
+      expect(new URL(page.url()).searchParams.has('fact')).toBe(false);
+      await expect(page.locator('.page-reader:not(.fact-reader)')).toBeVisible();
+    } finally { await context.close(); }
+  });
+
+  test('native unseeded Page refresh is disabled while a Fact owns the read and preserves bounded parent fields', async ({ browser, request }) => {
+    await scenario('facts-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      await context.addCookies([{ name: localeCookie, value: 'en', url: origin }]);
+      const page = await context.newPage();
+      await page.goto(`${origin}/?${new URLSearchParams({ source, page: 'parent-page', view: 'body', facts: '1', fact: '17' })}`);
+      await expect(page.locator('.fact-reader')).toContainText('원본 기억 🌿 / original public fact');
+      await clearCalls();
+      const form = page.locator('.page-list .page-refresh');
+      await expect(form.getByRole('button', { name: pageMessages.en.refresh, exact: true })).toBeDisabled();
+      expect(await page.locator('.fact-list .page-refresh button').evaluate(button => (button as HTMLButtonElement).disabled)).toBe(true);
+      const fields = await form.locator('input[type="hidden"]').evaluateAll(inputs => Object.fromEntries(inputs.map(input => [(input as HTMLInputElement).name, (input as HTMLInputElement).value])));
+      expect(fields).toMatchObject({ source, page: 'parent-page', view: 'body', facts: '1', fact: '17' });
+      const query = new URL(page.url()).searchParams;
+      expect(query.toString().length).toBeLessThanOrEqual(2048);
+      expect(query.get('source')).toBe(source); expect(query.get('fact')).toBe('17'); expect(query.get('facts')).toBe('1');
+      expect(query.get('page')).toBe('parent-page'); expect(query.get('view')).toBe('body');
+      expect(await calls()).toHaveLength(0);
+    } finally { await context.close(); }
+  });
+
+  for (const locale of ['en', 'ko'] as Locale[]) test(`native ${locale} Fact detail retains exact identity across full reading and language settings`, async ({ browser, request }) => {
+    await scenario('facts-success');
+    const sources = await (await request.post(`${origin}/api/sources`, { headers: { origin } })).json();
+    const source = sourceReference(sources.snapshot.sources[0]);
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      await context.addCookies([{ name: localeCookie, value: locale, url: origin }]);
+      const page = await context.newPage();
+      await page.goto(`${origin}/?${new URLSearchParams({ source })}`);
+      const t = factMessages[locale];
+      await expect(page.getByText(t.pending, { exact: true })).toBeVisible();
+      await page.getByRole('link', { name: t.load, exact: true }).click();
+      await page.locator('.fact-list tbody').getByRole('link').first().click();
+      const reader = page.locator('.fact-reader');
+      await expect(reader).toContainText('원본 기억 🌿 / original public fact');
+      await expect(reader).toContainText(t.pageQuote);
+      expect(new URL(page.url()).searchParams.get('fact')).toBe('17');
+      await reader.getByRole('link', { name: t.fullReading, exact: true }).click();
+      await expect(reader).toHaveClass(/page-reader-full/);
+      expect(new URL(page.url()).searchParams.get('factReading')).toBe('full');
+      const nextLocale = locale === 'en' ? 'ko' : 'en';
+      await page.getByRole('combobox', { name: sourceMessages[locale].language, exact: true }).selectOption(nextLocale);
+      await page.getByRole('button', { name: sourceMessages[locale].applyLanguage, exact: true }).click();
+      await expect(page.locator('html')).toHaveAttribute('lang', nextLocale);
+      expect(new URL(page.url()).searchParams.get('fact')).toBe('17');
+      expect(new URL(page.url()).searchParams.get('factReading')).toBe('full');
+      await expect(reader).toContainText('원본 기억 🌿 / original public fact');
+    } finally { await context.close(); }
   });
 
 });

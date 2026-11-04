@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
 import { pageReference, type Page } from "../contracts/pages";
-import { parsePageNavigation, sourceNavigationPath, type PageNavigation } from "../contracts/sources";
+import { parsePageNavigation, parseFactNavigation, sourceNavigationPath, type PageNavigation } from "../contracts/sources";
 
 const changed = "observatory-source-navigation";
 function subscribe(listener: () => void) {
@@ -12,6 +12,23 @@ function subscribe(listener: () => void) {
 export function pageRowId(page: Pick<Page, "namespace" | "sourceId" | "slug">) { return `page-${encodeURIComponent(pageReference(page))}`; }
 function ordinary(event: MouseEvent) { return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey; }
 interface Position { top: number; left: number; focus: string }
+const readerTargets = "a,button,input,summary,[tabindex]";
+export interface ParentPagePosition { source: string; slug: string; top: number; focusIndex: number }
+export function captureParentPage(source: string, detail: PageNavigation): ParentPagePosition | undefined {
+  const root = document.querySelector<HTMLElement>(".page-reader:not(.fact-reader)");
+  if (!root) return undefined;
+  return { source, slug: detail.slug, top: detail.mode === "full" ? window.scrollY : root.querySelector<HTMLElement>(".page-reader-scroll")?.scrollTop ?? 0,
+    focusIndex: Number(root.dataset.readerFocus ?? -1) };
+}
+export function restoreParentPage(value: ParentPagePosition | undefined, source: string | null, detail: PageNavigation | null) {
+  if (!value || !detail || value.source !== source || value.slug !== detail.slug || !Number.isFinite(value.top) || value.top < 0) return;
+  const root = document.querySelector<HTMLElement>(".page-reader:not(.fact-reader)");
+  if (!root) return;
+  const targets = root.querySelectorAll<HTMLElement>(readerTargets);
+  const target = Number.isInteger(value.focusIndex) && value.focusIndex >= 0 && value.focusIndex < targets.length ? targets[value.focusIndex] : document.getElementById("page-reader-title");
+  if (target?.getClientRects().length && !target.closest("[hidden],[inert]")) target.focus({ preventScroll: true }); else document.getElementById("page-reader-title")?.focus({ preventScroll: true });
+  if (detail.mode === "full") window.scrollTo(0, value.top); else { const reader = root.querySelector<HTMLElement>(".page-reader-scroll"); if (reader) reader.scrollTop = value.top; }
+}
 function position(): Position {
   return { top: window.scrollY, left: document.querySelector(".page-list .table-scroll")?.scrollLeft ?? 0,
     focus: document.activeElement instanceof HTMLElement ? document.activeElement.id : "" };
@@ -21,6 +38,15 @@ function position(): Position {
 export function usePageNavigation(initialQuery: string, selected: string | null, expanded: string[], filter: string) {
   const query = useSyncExternalStore(subscribe, () => window.location.search, () => initialQuery);
   const detail = parsePageNavigation(new URLSearchParams(query));
+  const fact = parseFactNavigation(new URLSearchParams(query));
+  useEffect(() => {
+    function remember(event: FocusEvent) {
+      if (!(event.target instanceof HTMLElement)) return;
+      const root = event.target.closest<HTMLElement>(".page-reader:not(.fact-reader)");
+      if (root) root.dataset.readerFocus = String([...root.querySelectorAll(readerTargets)].indexOf(event.target));
+    }
+    document.addEventListener("focusin", remember); return () => document.removeEventListener("focusin", remember);
+  }, []);
   const [intent, setIntent] = useState(0);
   const prior = useRef<string | null>(detail ? `${selected}|${detail.slug}|${detail.mode}` : null);
   const [lastSelection, setLastSelection] = useState<{source: string; slug: string} | null>(detail && selected ? { source: selected, slug: detail.slug } : null);
@@ -50,23 +76,27 @@ export function usePageNavigation(initialQuery: string, selected: string | null,
       return () => cancelAnimationFrame(frame);
     }
   }, [detailKey]);
-  function href(next: PageNavigation | null, source = selected) { return sourceNavigationPath(source, expanded, filter, next); }
-  function move(next: PageNavigation | null, event?: MouseEvent<HTMLAnchorElement>, source = selected, focus?: string) {
+  function href(next: PageNavigation | null, source = selected, added = filter) {
+    return sourceNavigationPath(source, expanded, added, next, source === selected ? { ...fact, id: null, mode: "panel" } : null);
+  }
+  function move(next: PageNavigation | null, event?: MouseEvent<HTMLAnchorElement>, source = selected, focus?: string, added = filter) {
     if (event && !ordinary(event)) return;
     event?.preventDefault();
     const historyState = window.history.state ?? {};
     const pageReturn = !detail ? { ...position(), focus: focus ?? position().focus } : historyState.pageReturn;
-    const reader = document.querySelector<HTMLElement>(".page-reader-scroll");
-    const pageReader = detail ? { top: detail.mode === "full" ? window.scrollY : reader?.scrollTop ?? 0, left: 0, focus: document.activeElement instanceof HTMLElement ? document.activeElement.id : "" } : undefined;
-    window.history.replaceState({ ...historyState, pageReturn, ...(pageReader ? { pageReader } : {}) }, "", window.location.href);
-    window.history.pushState({ sourceReturn: historyState.sourceReturn, pageReturn }, "", href(next, source));
+    const reader = document.querySelector<HTMLElement>(".page-reader:not(.fact-reader) .page-reader-scroll");
+    const pageReader = detail && !fact.id ? { top: detail.mode === "full" ? window.scrollY : reader?.scrollTop ?? 0, left: 0, focus: document.activeElement instanceof HTMLElement ? document.activeElement.id : "" } : undefined;
+    const factRoot = document.querySelector<HTMLElement>(".fact-reader");
+    const factReader = factRoot ? { top: factRoot.classList.contains("page-reader-full") ? window.scrollY : factRoot.querySelector<HTMLElement>(".page-reader-scroll")?.scrollTop ?? 0, left: 0, focus: (document.activeElement instanceof HTMLElement ? document.activeElement.id : "") || factRoot.dataset.readerFocus || "" } : undefined;
+    window.history.replaceState({ ...historyState, pageReturn, ...(pageReader ? { pageReader } : {}), ...(factReader ? { factReader } : {}) }, "", window.location.href);
+    window.history.pushState({ sourceReturn: historyState.sourceReturn, pageReturn }, "", href(next, source, added));
     window.dispatchEvent(new Event(changed));
   }
-  function open(page: Page, event?: MouseEvent<HTMLAnchorElement>) {
+  function open(page: Page, event?: MouseEvent<HTMLAnchorElement>, added = filter) {
     if (event && !ordinary(event)) return;
     setIntent(value => value + 1);
     setLastSelection({ source: JSON.stringify([page.namespace, page.sourceId]), slug: page.slug });
-    move({ slug: page.slug, view: "memories", mode: "panel" }, event, JSON.stringify([page.namespace, page.sourceId]), pageRowId(page));
+    move({ slug: page.slug, view: "memories", mode: "panel" }, event, JSON.stringify([page.namespace, page.sourceId]), pageRowId(page), added);
   }
   function closeInvalid() {
     const state = window.history.state ?? {};

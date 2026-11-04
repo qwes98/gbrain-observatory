@@ -50,6 +50,15 @@ export interface PageNavigation {
   view: "memories" | "body" | "references";
   mode: "panel" | "full";
 }
+export interface FactNavigation { loaded: boolean; id: string | null; mode: "panel" | "full" }
+export function boundedFactId(value: unknown): value is string {
+  return typeof value === "string" && /^[1-9]\d{0,127}$/.test(value);
+}
+export function parseFactNavigation(query: URLSearchParams): FactNavigation {
+  const loaded = query.getAll("facts"), ids = query.getAll("fact"), modes = query.getAll("factReading");
+  const valid = ids.length === 1 && boundedFactId(ids[0]) && modes.length <= 1 && (!modes.length || modes[0] === "full" || modes[0] === "panel");
+  return { loaded: loaded.length === 1 && loaded[0] === "1" || valid, id: valid ? ids[0] : null, mode: valid && modes[0] === "full" ? "full" : "panel" };
+}
 /** URLs contain bounded identity and view only; never source content or claim offsets. */
 export function boundedPageSlug(value: unknown): value is string {
   if (typeof value !== "string" || !value.length || value.length > 512 || /[\u0000-\u001f\u007f]/.test(value)) return false;
@@ -73,7 +82,7 @@ export function boundedSourceReference(value: string): boolean {
   } catch { return false; }
 }
 /** Keep navigation small enough for ordinary request lines and same-origin referrers. */
-export function sourceNavigationParameters(selected: string | null, expanded: string[], added: string = "all", detail?: PageNavigation | null): URLSearchParams {
+export function sourceNavigationParameters(selected: string | null, expanded: string[], added: string = "all", detail?: PageNavigation | null, fact?: FactNavigation | null): URLSearchParams {
   const result = new URLSearchParams();
   if (selected !== null && boundedSourceReference(selected)) result.set("source", selected);
   if (added === "today" || added === "yesterday") result.set("added", added);
@@ -92,10 +101,21 @@ export function sourceNavigationParameters(selected: string | null, expanded: st
     if (detail.view === "body" || detail.view === "references") result.set("view", detail.view);
     if (detail.mode === "full") result.set("reading", "full");
   }
+  if (selected !== null && boundedSourceReference(selected) && fact) {
+    if (fact.loaded) result.set("facts", "1");
+    if (fact.id !== null && boundedFactId(fact.id)) {
+      result.set("fact", fact.id);
+      if (fact.mode === "full") result.set("factReading", "full");
+    }
+  }
+  while (result.toString().length > navigationQueryLimit && result.has("expanded")) {
+    const retained = result.getAll("expanded").slice(0, -1); result.delete("expanded");
+    for (const branch of retained) result.append("expanded", branch);
+  }
   return result;
 }
-export function sourceNavigationPath(selected: string | null, expanded: string[], added: string = "all", detail?: PageNavigation | null): string {
-  const query = sourceNavigationParameters(selected, expanded, added, detail).toString();
+export function sourceNavigationPath(selected: string | null, expanded: string[], added: string = "all", detail?: PageNavigation | null, fact?: FactNavigation | null): string {
+  const query = sourceNavigationParameters(selected, expanded, added, detail, fact).toString();
   return query ? `/?${query}` : "/";
 }
 export const pageNavigationPath = sourceNavigationPath;
@@ -106,6 +126,6 @@ export function validatedSourceReturn(value: FormDataEntryValue | null): string 
     if (url.pathname !== "/" || url.origin !== "https://internal.invalid") return "/";
     const selected = url.searchParams.getAll("source");
     const added = url.searchParams.getAll("added");
-    return sourceNavigationPath(selected.length === 1 ? selected[0] : null, url.searchParams.getAll("expanded"), added.length === 1 ? added[0] : "all", parsePageNavigation(url.searchParams));
+    return sourceNavigationPath(selected.length === 1 ? selected[0] : null, url.searchParams.getAll("expanded"), added.length === 1 ? added[0] : "all", parsePageNavigation(url.searchParams), parseFactNavigation(url.searchParams));
   } catch { return "/"; }
 }

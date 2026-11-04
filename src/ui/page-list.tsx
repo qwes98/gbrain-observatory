@@ -86,7 +86,7 @@ function AddedFilter({ locale, filter, setFilter, query }: { locale: Locale; fil
   }
   return <div className="page-filter" ref={root} onKeyDown={keydown}>
     <form hidden={enhanced} action="/" method="get">
-      {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
+      {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "facts" || key === "fact" || key === "factReading" || (new URLSearchParams(query).has("fact") && ["page", "view", "reading"].includes(key))).map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
       <label htmlFor="page-added-filter">{t.filter}</label><select id="page-added-filter" name="added" defaultValue={filter} key={filter}>{options.map(value => <option key={value} value={value}>{t[value]}</option>)}</select>
       <button type="submit">{t.apply}</button>
     </form>
@@ -97,8 +97,8 @@ function AddedFilter({ locale, filter, setFilter, query }: { locale: Locale; fil
   </div>;
 }
 
-export function PageList({ source, seed, endpoint, authority, filter, setFilter, query, locale, loadPages, selectedPage, pageHref, openPage, onAccessLost, deniedPage, deferInitial = false }: {
-  deferInitial?: boolean; deniedPage?: { slug: string; token: object; intent: number }; selectedPage?: string | null; pageHref?: (page: Page) => string; openPage?: (page: Page, event?: MouseEvent<HTMLAnchorElement>) => void; onAccessLost?: () => void;
+export function PageList({ source, seed, endpoint, authority, filter, setFilter, query, locale, loadPages, selectedPage, pageHref, openPage, onAccessLost, deniedPage, deferInitial = false, blockUnseeded = deferInitial }: {
+  deferInitial?: boolean; blockUnseeded?: boolean; deniedPage?: { slug: string; token: object; intent: number }; selectedPage?: string | null; pageHref?: (page: Page) => string; openPage?: (page: Page, event?: MouseEvent<HTMLAnchorElement>) => void; onAccessLost?: (issue: Extract<PageListResult, { kind: "denied" | "unavailable" | "unconfigured" }>) => void;
   source: string; seed?: PageListResult; endpoint?: string; authority: object; filter: PageFilter;
   setFilter: (filter: PageFilter) => void; query: string; locale: Locale; loadPages?: PageLoader;
 }) {
@@ -110,8 +110,11 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
   const clock = useMemo(() => createCalendarClock(initialNow), [initialNow]);
   const now = useSyncExternalStore(clock.subscribe, clock.get, clock.server);
   const condition = `${filter}|${zone}|${calendarDay(now, zone) ?? ""}`;
-  const { state, snapshot, acquisition, issuedSequence, refresh, more } = usePageList(source, seed, endpoint, authority, condition, loadPages, deferInitial);
-  useEffect(() => { if (["denied", "unavailable", "unconfigured"].includes(state.kind)) onAccessLost?.(); }, [state.kind, onAccessLost]);
+  const { state, snapshot, acquisition, issuedSequence, refresh, more } = usePageList(source, seed, endpoint, authority, condition, loadPages, deferInitial, blockUnseeded);
+  const reportedIssue = useRef<object | null>(null);
+  useEffect(() => { if ((state.kind === "denied" || state.kind === "unavailable" || state.kind === "unconfigured") && reportedIssue.current !== state) {
+    reportedIssue.current = state; onAccessLost?.(state);
+  } }, [state, onAccessLost]);
   const [hadMore, setHadMore] = useState(false);
   if (snapshot?.range === "more" && !hadMore) setHadMore(true);
   const [restrictions, setRestrictions] = useState<{ acquisition: typeof acquisition; rows: { slug: string; afterGeneration: number }[]; token?: object; intent?: number }>({ acquisition, rows: [] });
@@ -137,8 +140,8 @@ export function PageList({ source, seed, endpoint, authority, filter, setFilter,
     <div className="page-board">
     <div className="pages-toolbar"><h2 id="pages-title" tabIndex={-1}>{t.title}</h2><AddedFilter locale={locale} filter={filter} setFilter={setFilter} query={query} /><ContextHelp locale={locale} label={t.dateHelp} title={t.added}><p>{t.meaning}</p><p>{t.coverage}</p><p>{t.offsets}</p></ContextHelp>
       {canRead && <form className="page-refresh" action="/" method="get" onSubmit={event => { if (enhanced) { event.preventDefault(); refresh(); } }}>
-        {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "added" || key === "page" || key === "view" || key === "reading").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
-        <button type="submit" aria-disabled={state.kind === "loading" || (deferInitial && !snapshot)}>{t.refresh}</button>
+        {[...new URLSearchParams(query)].filter(([key]) => key === "source" || key === "expanded" || key === "added" || key === "page" || key === "view" || key === "reading" || key === "facts" || key === "fact" || key === "factReading").map(([key, value], index) => <input type="hidden" key={`${key}-${index}`} name={key} value={value} />)}
+        <button type="submit" disabled={blockUnseeded && !snapshot} aria-disabled={state.kind === "loading" || (blockUnseeded && !snapshot)}>{t.refresh}</button>
       </form>}
     </div>
     <div role="status" aria-live="polite" aria-atomic="true" className="page-status">

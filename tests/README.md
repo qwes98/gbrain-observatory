@@ -132,3 +132,40 @@ error, actual query serialization/settings roundtrips, exact public window text,
 failed-reference disclosure, and unoccluded background controls at 1440/958px.
 Configured native checks assert hidden full-mode lists remain deferred, refresh
 preserves Page/view, and onClick-only location controls are absent without JS.
+
+
+Source-scoped Facts are covered by `facts.spec.ts` and
+`operations/gbrain-facts.test.mjs`, using synthetic multilingual source content
+and the production contracts/UI/adapter. The operation harness exercises fixed
+Source-scoped recall, public Fact identity, a 100-candidate ceiling, exact Page
+endpoints and current UTF-16 quote matching. Focused locale checks use the typed
+catalog plus independent translation examples. Configured/native API cases
+belong to the existing serial group in `connection.spec.ts`; do not run shared
+server ports or scenario files from independent test processes concurrently.
+
+Story 1.7 evidence distinguishes synthetic tests, browser comparison with the
+approved mockup, installed Adapter/local authorized UI measurements, and
+physical-device acceptance. Never commit private live Fact IDs, Source IDs,
+slugs, text, screenshots or raw process output as evidence.
+
+`fact-presentation.spec.ts` covers repeated quote focus, permitted body/highlight
+and position restoration, actual native disabled properties, localized partial
+provenance/body states, and preserved observation intervals. Configured JavaScript
+journeys exercise real Fact POST transport and Find-then-reload hydration with
+console/page-error capture; injected fixture loaders and native SSR are separate
+checks. The detailed adapter budget regression also covers Page/trajectory steps
+after recall and confirms that expired commands cannot spawn another process.
+
+Cold Source recovery checks cover accessible reader actions in mobile and full
+reading, bounded parent/Fact identities, keyboard focus after the action disappears,
+and JavaScript-free GET recovery in both UI languages.
+
+Conditional Page provenance tests pin the supported release’s four exact extraction
+producers and annotated context-head rules. They reject free-text or unknown
+producers even when the text equals a real Page slug, preserve raw context, and
+retain the existing exact identity, quote, protection and cumulative-budget checks.
+
+Presentation checks also cross the facts=1 History boundary and the reader’s
+Source link, preserving permitted internal observations while hiding unloaded
+results. Late denied/unavailable/unconfigured replies still propagate. A source
+body disclosure requires a verified Page; genuine protected Pages retain theirs.

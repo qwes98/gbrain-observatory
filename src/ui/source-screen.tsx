@@ -1,12 +1,17 @@
 "use client";
 
 import { useId, useRef, useState, useEffect, useSyncExternalStore, useCallback, type ReactNode } from "react";
-import { defaultLocale, formatResultCount, sourceMessages, readerMessages, type Locale } from "../i18n/messages";
+import { defaultLocale, formatResultCount, sourceMessages, readerMessages, factMessages, type Locale } from "../i18n/messages";
 import { sourceReference, sourceNavigationParameters, validSourceReference, type Source, type SourceListResult, type SourceListState } from "../contracts/sources";
 import { formatInstant } from "../i18n/time-zone";
 import { useTimeZone } from "./time-zone-provider";
 import { useSourceList } from "./use-source-list";
 import { sourceRowId, useSourceNavigation } from "./use-source-navigation";
+import { FactList } from "./fact-list";
+import { FactReader } from "./fact-reader";
+import { useFactDetail, type FactLoader, type FactDetailLoader, type FactSourceCause } from "./use-facts";
+import { useFactNavigation } from "./use-fact-navigation";
+import type { FactListResult, FactDetailResult, FactResultIssue } from "../contracts/facts";
 import { PageReader } from "./page-reader";
 import { usePageDetail, type PageDetailLoader } from "./use-page-detail";
 import { usePageNavigation } from "./use-page-navigation";
@@ -36,6 +41,12 @@ interface SourceScreenProps {
   initialDetail?: PageDetailResult;
   detailEndpoint?: string;
   loadDetail?: PageDetailLoader;
+  initialFacts?: FactListResult;
+  initialFactDetail?: FactDetailResult;
+  factsEndpoint?: string;
+  factDetailEndpoint?: string;
+  loadFacts?: FactLoader;
+  loadFactDetail?: FactDetailLoader;
 }
 
 function Timestamp({ value, locale }: { value: string | null; locale: Locale }) {
@@ -97,7 +108,7 @@ function Navigation({ locale, sources, navigation, sourcesOpen, toggleSources }:
   </nav>;
 }
 
-export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativeRefresh = false, initialQuery = "", locale = defaultLocale, languageControl, timeZoneControl, connectionControl, initialPages, pagesEndpoint, loadPages, initialDetail, detailEndpoint, loadDetail }: SourceScreenProps) {
+export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativeRefresh = false, initialQuery = "", locale = defaultLocale, languageControl, timeZoneControl, connectionControl, initialPages, pagesEndpoint, loadPages, initialDetail, detailEndpoint, loadDetail, initialFacts, initialFactDetail, factsEndpoint, factDetailEndpoint, loadFacts, loadFactDetail }: SourceScreenProps) {
   const t = sourceMessages[locale];
   const zone = useTimeZone();
   const loader = loadSources ?? (refreshEndpoint ? async (): Promise<SourceListResult> => {
@@ -138,26 +149,59 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
     return () => { clearInterval(timer); window.removeEventListener("focus", tick); window.removeEventListener("pageshow", tick); document.removeEventListener("visibilitychange", tick); };
   }, []);
   const pageNavigation = usePageNavigation(initialQuery, navigation.selected, navigation.expanded, navigation.filter);
-  const reading = pageNavigation.detail;
-  const currentParameters = sourceNavigationParameters(navigation.selected, navigation.expanded, navigation.filter, reading);
+  const factNavigation = useFactNavigation(initialQuery, navigation.selected, navigation.expanded, navigation.filter);
+  const factReading = factNavigation.detail;
+  const reading = factReading ? null : pageNavigation.detail;
+  const activeReading = factReading ?? reading;
+  const currentParameters = sourceNavigationParameters(navigation.selected, navigation.expanded, navigation.filter, pageNavigation.detail, { loaded: factNavigation.loaded, id: factReading?.id ?? null, mode: factReading?.mode ?? "panel" });
   const currentQuery = currentParameters.toString();
   const mobile = useSyncExternalStore(subscribeMobile, getMobile, () => false);
-  const [revoked, setRevoked] = useState<string | null>(null);
-  const revoke = useCallback(() => setRevoked(navigation.selected), [navigation.selected]);
-  const openPage: typeof pageNavigation.open = (page, event) => { setRevoked(null); pageNavigation.open(page, event); };
+  const [revocation, setRevocation] = useState<{ source: string | null; basis: object | undefined; issue: FactResultIssue } | null>(null);
+  const recovered = !!revocation && state.kind === "success" && state.snapshot !== revocation.basis && state.snapshot.sources.some(source => sourceReference(source) === revocation.source);
+  if (recovered) setRevocation(null);
+  const revoked = recovered ? null : revocation?.source ?? null;
+  const revoke = useCallback((issue: FactResultIssue) => setRevocation({ source: navigation.selected, basis: snapshot,
+    issue }), [navigation.selected, snapshot]);
+  const [factsSeed, setFactsSeed] = useState({ seed: initialFacts, usable: true });
+  let currentFactsSeed = factsSeed;
+  if (factsSeed.seed !== initialFacts) {
+    currentFactsSeed = { seed: initialFacts, usable: initialPagesSource === navigation.selected && !!selectedSource && revoked !== navigation.selected };
+    setFactsSeed(currentFactsSeed);
+  } else if (factsSeed.usable && (initialPagesSource !== navigation.selected || !selectedSource || revoked === navigation.selected)) {
+    currentFactsSeed = { ...factsSeed, usable: false }; setFactsSeed(currentFactsSeed);
+  }
+  const openPage: typeof pageNavigation.open = (page, event) => { pageNavigation.open(page, event); };
   const detailRequest = reading && navigation.selected ? { source: navigation.selected, slug: reading.slug } : null;
   const initialDetailSlug = new URLSearchParams(initialQuery).get("page");
   const [detailSeed, setDetailSeed] = useState({ seed: initialDetail, usable: true });
   let currentDetailSeed = detailSeed;
   if (detailSeed.seed !== initialDetail) {
-    currentDetailSeed = { seed: initialDetail, usable: initialPagesSource === navigation.selected && initialDetailSlug === reading?.slug && !!selectedSource };
+    currentDetailSeed = { seed: initialDetail, usable: initialPagesSource === navigation.selected && initialDetailSlug === pageNavigation.detail?.slug && !!selectedSource };
     setDetailSeed(currentDetailSeed);
-  } else if (detailSeed.usable && (initialPagesSource !== navigation.selected || initialDetailSlug !== reading?.slug || !selectedSource)) {
+  } else if (detailSeed.usable && (initialPagesSource !== navigation.selected || (pageNavigation.detail !== null && initialDetailSlug !== pageNavigation.detail.slug) || !selectedSource || revoked === navigation.selected)) {
     currentDetailSeed = { ...detailSeed, usable: false }; setDetailSeed(currentDetailSeed);
   }
   const seedDetail = currentDetailSeed.usable ? initialDetail : undefined;
   const detailState = usePageDetail(detailRequest, seedDetail, detailEndpoint, authority,
     `${navigation.filter}|${zone}|${calendarDay(calendarNow, zone)}`, !!selectedSource && revoked !== navigation.selected, pageNavigation.intent, navigation.selected, snapshot?.sources.map(sourceReference) ?? [], loadDetail);
+  const factRequest = factReading && navigation.selected ? { source: navigation.selected, id: factReading.id } : null;
+  const initialFactId = new URLSearchParams(initialQuery).get("fact");
+  const [factSeed, setFactSeed] = useState({ seed: initialFactDetail, usable: true });
+  let currentFactSeed = factSeed;
+  if (factSeed.seed !== initialFactDetail) {
+    currentFactSeed = { seed: initialFactDetail, usable: initialPagesSource === navigation.selected && initialFactId === factReading?.id && !!selectedSource }; setFactSeed(currentFactSeed);
+  } else if (factSeed.usable && (initialPagesSource !== navigation.selected || (factReading !== null && initialFactId !== factReading.id) || !selectedSource || revoked === navigation.selected)) {
+    currentFactSeed = { ...factSeed, usable: false }; setFactSeed(currentFactSeed);
+  }
+  const sourceLost = state.kind === "denied" || !!snapshot && !selectedSource || revoked === navigation.selected;
+  const pendingSource: FactSourceCause | undefined = !selectedSource && !sourceLost &&
+    (state.kind === "loading" || state.kind === "failure" || state.kind === "unknown" || state.kind === "unconfigured") ? state : undefined;
+  const factState = useFactDetail(factRequest, currentFactSeed.usable ? initialFactDetail : undefined, factDetailEndpoint, authority,
+    !!selectedSource && revoked !== navigation.selected, factNavigation.intent, navigation.selected, loadFactDetail, pendingSource);
+  if (factReading && revoked !== navigation.selected && (factState.kind === "denied" || factState.kind === "unavailable" && factState.reason === "source-unavailable")) setRevocation({ source: navigation.selected, basis: snapshot, issue: factState });
+  useEffect(() => {
+    if (factReading && sourceLost) factNavigation.closeInvalid(!!selectedSource);
+  }, [factReading, selectedSource, factNavigation, sourceLost]);
   const outside = detailState.kind === "outside";
   useEffect(() => {
     if (!reading?.slug || detailState.kind === "success" || detailState.kind === "loading") return;
@@ -165,7 +209,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
     if (state?.pageReturn?.focus) window.history.replaceState({ ...state, pageReturn: { ...state.pageReturn, focus: "" } }, "", window.location.href);
   }, [reading, detailState.kind]);
   useEffect(() => { if (outside && reading) pageNavigation.closeInvalid(); }, [outside, reading, pageNavigation]);
-  const blockedBackground = !!reading && (mobile || reading.mode === "full");
+  const blockedBackground = !!activeReading && (mobile || activeReading.mode === "full");
   const guide = useRef<HTMLDialogElement>(null);
   const guideTrigger = useRef<HTMLButtonElement>(null);
   const previous = !!snapshot && state.kind !== "success";
@@ -173,10 +217,23 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
     ? t.issues[state.kind] : undefined;
   const showSourceDetail = navigation.selected !== null && !(state.kind === "loading" && !snapshot);
   const canReload = (!!loader || nativeRefresh) && state.kind !== "unconfigured";
+  const pendingFactReader = !!factReading && factState.kind === "source-pending";
+  const sourceRefreshForm = canReload ? <form action="/" method="get" onSubmit={event => { if (loader) {
+    event.preventDefault();
+    const inReader = !!event.currentTarget.closest(".fact-reader");
+    const trigger = event.currentTarget.querySelector("button");
+    void refresh().then(() => { if (inReader) requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active === document.body || active === trigger || active instanceof HTMLElement && active.closest("[inert],[hidden]")) document.getElementById("fact-reader-title")?.focus({ preventScroll: true });
+    }); });
+  } }}>
+                {Array.from(currentParameters).filter(([key]) => key === "source" || key === "expanded" || key === "added" || key === "page" || key === "view" || key === "reading" || key === "facts" || key === "fact" || key === "factReading").map(([key, value], index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />)}
+                <button type="submit" disabled={state.kind === "loading" && pendingFactReader} aria-disabled={state.kind === "loading"}>{state.kind === "loading" ? t.refreshing : t.refresh}</button>
+              </form> : null;
 
   return <>
-    <a className="skip-link" href={reading ? "#page-reader-title" : "#main"}>{reading ? readerMessages[locale].skipToReader : t.skipToMain}</a>
-    <aside className="sidebar" inert={!!reading && mobile} aria-label={t.appNavigation}>
+    <a className="skip-link" href={factReading ? "#fact-reader-title" : reading ? "#page-reader-title" : "#main"}>{factReading ? factMessages[locale].skipToReader : reading ? readerMessages[locale].skipToReader : t.skipToMain}</a>
+    <aside className="sidebar" inert={!!activeReading && mobile} aria-label={t.appNavigation}>
       <div className="brand"><svg className="brand-mark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="12" rx="10" ry="4.6" transform="rotate(-28 12 12)" /><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none" /><circle cx="20.2" cy="7.6" r="1.3" fill="currentColor" stroke="none" /></svg><strong>GBrain Observatory</strong></div>
       <div className="desktop-navigation"><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} sourcesOpen={sourcesOpen} toggleSources={toggleSources} /></div>
       <details className="mobile-navigation"><summary>{t.navigationMenu}</summary><Navigation locale={locale} sources={snapshot?.sources ?? []} navigation={navigation} sourcesOpen={sourcesOpen} toggleSources={toggleSources} /></details>
@@ -185,7 +242,7 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
     <div className="workspace">
       <header className="context-bar"><span>{t.myBrain}</span><span aria-hidden="true">/</span><span aria-current={navigation.selected === null ? "page" : undefined}>{t.sources}</span>{selectedSource && <><span aria-hidden="true">/</span><span aria-current="page">{sourceName(selectedSource)}</span></>}</header>
       <main id="main" tabIndex={-1} className="min-w-0">
-        <div className="desk" hidden={reading?.mode === "full"} inert={blockedBackground} onSubmitCapture={event => {
+        <div className="desk" hidden={activeReading?.mode === "full"} inert={blockedBackground} onSubmitCapture={event => {
           const input = (event.target as HTMLFormElement).querySelector<HTMLInputElement>('input[name="sourceReturn"]');
           if (input) input.value = typeof window === "undefined" ? `/${navigation.href(navigation.selected)}` : `${window.location.pathname}${window.location.search}`;
         }}>
@@ -198,15 +255,12 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
           <div className="workspace-controls"><div className="source-toolbar">
             <span className={`section-label${navigation.selected !== null ? " sr-only" : ""}`} id="source-list-title" tabIndex={-1}>{t.sourceList}</span>
             <div className="toolbar-actions">
-              {reading?.mode !== "full" && languageControl}
-              {canReload && <form action="/" method="get" onSubmit={event => { if (loader) { event.preventDefault(); void refresh(); } }}>
-                {Array.from(currentParameters).filter(([key]) => key === "source" || key === "expanded" || key === "added" || key === "page" || key === "view" || key === "reading").map(([key, value], index) => <input key={`${key}-${index}`} type="hidden" name={key} value={value} />)}
-                <button type="submit" aria-disabled={state.kind === "loading"}>{state.kind === "loading" ? t.refreshing : t.refresh}</button>
-              </form>}
+              {activeReading?.mode !== "full" && languageControl}
+              {!pendingFactReader && sourceRefreshForm}
               <button type="button" ref={guideTrigger} onClick={() => guide.current?.showModal()}>{t.guide}</button>
             </div>
           </div>
-          {reading?.mode !== "full" && timeZoneControl}</div>
+          {activeReading?.mode !== "full" && timeZoneControl}</div>
           {connectionControl}
           <div className="state-announcement" role="status" aria-live="polite" aria-atomic="true">
             {state.kind === "loading" && <p>{t.loading}</p>}
@@ -250,7 +304,13 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
                   <p>{t.serviceNotProvided}</p>
                 </section>
               </div>
-            </div><PageList deferInitial={!!reading} selectedPage={reading?.slug ?? (pageNavigation.lastSelection?.source === navigation.selected ? pageNavigation.lastSelection.slug : null)} deniedPage={(detailState.kind === "denied" || detailState.kind === "unavailable") && reading ? { slug: reading.slug, token: detailState, intent: pageNavigation.intent } : undefined} pageHref={page => pageNavigation.href({ slug: page.slug, view: "memories", mode: "panel" })} openPage={openPage} onAccessLost={revoke} key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={currentQuery} locale={locale} loadPages={loadPages} />
+            </div><PageList deferInitial={!!activeReading || factNavigation.loaded} blockUnseeded={!!activeReading} selectedPage={reading?.slug ?? (pageNavigation.lastSelection?.source === navigation.selected ? pageNavigation.lastSelection.slug : null)} deniedPage={(detailState.kind === "denied" || detailState.kind === "unavailable") && reading ? { slug: reading.slug, token: detailState, intent: pageNavigation.intent } : undefined} pageHref={page => pageNavigation.href({ slug: page.slug, view: "memories", mode: "panel" })} openPage={openPage} onAccessLost={revoke} key={sourceReference(selectedSource)} source={sourceReference(selectedSource)} seed={scopedInitialPages} endpoint={pagesEndpoint} authority={authority} filter={navigation.filter} setFilter={navigation.setFilter} query={currentQuery} locale={locale} loadPages={loadPages} />
+            <FactList key={`facts-${sourceReference(selectedSource)}`} source={sourceReference(selectedSource)}
+              seed={currentFactsSeed.usable ? initialFacts : undefined} endpoint={factsEndpoint} authority={authority}
+              enabled={factNavigation.loaded} allowed={revoked !== navigation.selected} accessIssue={revocation?.source === navigation.selected ? revocation.issue : undefined} blocked={!!activeReading}
+              query={currentQuery} locale={locale} loadFacts={loadFacts} selectedFact={factReading?.id ?? (factNavigation.lastSelection?.source === navigation.selected ? factNavigation.lastSelection.id : null)}
+              factHref={fact => factNavigation.href({ id: fact.id, mode: "panel" })} openFact={factNavigation.open}
+              enable={factNavigation.load} enableHref={factNavigation.href(null)} onAccessLost={revoke} />
             </> : <p>{t.selectionUnavailableReason}</p>}
           </section>}
           <div className="table-board" hidden={navigation.selected !== null} aria-busy={state.kind === "loading"}>
@@ -269,6 +329,13 @@ export function SourceScreen({ initialState, loadSources, refreshEndpoint, nativ
             <div className="table-footer">{snapshot && <div className="context-value"><span>{formatResultCount(locale, snapshot.sources.length)} · {t.coverageSummary}</span><ContextHelp locale={locale} label={t.sourceScopeHelp} title={t.sources}><p>{t.coverageUnknown}</p></ContextHelp></div>}{!snapshot && <span>{t.listPending}</span>}{snapshot && <span>{t.checkedAt}: <Timestamp locale={locale} value={snapshot.checkedAt} /> · {zone}</span>}</div>
           </div>
         </div>
+        {factReading && <FactReader key={`${navigation.selected}|${factReading.id}`} state={factState} detail={factReading} locale={locale}
+          query={factNavigation.query} href={factNavigation.href} move={factNavigation.move}
+          sourceRecovery={pendingFactReader ? sourceRefreshForm : undefined}
+          initialPresentation={factState.kind === "success" ? factNavigation.presentation : undefined} onPresentationChange={factNavigation.setPresentation}
+          sourceHref={navigation.href(navigation.selected)} sourceOpen={event => navigation.navigate(navigation.selected, event)}
+          pageHref={page => pageNavigation.href({ slug: page.slug, view: "memories", mode: "panel" }, navigation.selected, "all")}
+          openPage={(page, event) => pageNavigation.open(page, event, "all")} preferences={factReading.mode === "full" ? <div className="workspace-controls">{languageControl}{timeZoneControl}</div> : undefined} />}
         {reading && <PageReader key={`${navigation.selected}|${reading.slug}`} state={detailState} detail={reading} locale={locale} query={pageNavigation.query}
           href={pageNavigation.href} move={pageNavigation.move} setView={pageNavigation.setView} open={openPage} outside={outside}
           preferences={reading.mode === "full" ? <div className="workspace-controls">{languageControl}{timeZoneControl}</div> : undefined} />}

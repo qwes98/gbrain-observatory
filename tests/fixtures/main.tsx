@@ -12,6 +12,8 @@ import type { PageListResult, PageRequest } from '../../src/contracts/pages';
 import { pageSnapshot } from './page-data';
 import type { PageDetailRequest, PageDetailResult } from '../../src/contracts/page-detail';
 import { pageDetailSnapshot, publicWindowExcerpt, emptyMemoryTable } from './page-detail-data';
+import type { FactRequest, FactDetailRequest, FactListResult, FactDetailResult } from '../../src/contracts/facts';
+import { factRows, factSnapshot, factDetailSnapshot, factRawContext } from './fact-data';
 
 const parameters = new URLSearchParams(location.search);
 const locale = resolveLocale(parameters.get('locale'));
@@ -19,6 +21,15 @@ document.documentElement.lang = locale;
 const scenario = parameters.get('scenario') ?? 'unconfigured';
 const states: Record<string, SourceListState> = {
   loading: { kind: 'loading' },
+  'facts-cold-failure': { kind: 'failure', reason: 'request-failed' },
+  'facts-cold-seed': { kind: 'failure', reason: 'request-failed' },
+  'facts-cold-busy': { kind: 'failure', reason: 'busy' },
+  'facts-cold-unknown': { kind: 'unknown', reason: 'unconfirmed' },
+  'facts-cold-unsupported': { kind: 'unknown', reason: 'unsupported' },
+  'facts-cold-unconfigured': { kind: 'unconfigured', reason: 'adapter-not-configured' },
+  'facts-cold-loading': { kind: 'loading' },
+  'facts-cold-denied': { kind: 'denied', reason: 'access-denied' },
+  'facts-cold-absent': { kind: 'success', snapshot: { ...snapshot, sources: [] } },
   busy: { kind: 'failure', reason: 'busy' },
   denied: { kind: 'denied', reason: 'access-denied' },
   unnamed: { kind: 'success', snapshot: { ...snapshot, sources: snapshot.sources.map((source, index) => ({ ...source, name: index === 0 ? '' : '   ' })) } },
@@ -45,7 +56,8 @@ Object.assign(window, { __pageFixture: pageControl });
 function loadPages(request: PageRequest): Promise<PageListResult> {
   pageControl.calls.push(request);
   return new Promise(resolve => { pageControl.release = kind => {
-    if (kind === 'denied') resolve({ kind: 'denied', reason: 'access-denied' });
+    if (kind === 'unconfigured') resolve({ kind: 'unconfigured', reason: 'adapter-not-configured' });
+    else if (kind === 'denied') resolve({ kind: 'denied', reason: 'access-denied' });
     else if (kind === 'unavailable') resolve({ kind: 'unavailable', reason: 'source-unavailable' });
     else if (kind === 'failure') resolve({ kind: 'failure', reason: 'request-failed' });
     else if (kind === 'unknown') resolve({ kind: 'unknown', reason: 'unsupported' });
@@ -76,8 +88,52 @@ function detailResult(request: PageDetailRequest, kind: string): PageDetailResul
 }
 function loadDetail(request: PageDetailRequest): Promise<PageDetailResult> {
   detailControl.calls.push(request);
-  if (scenario !== 'reader-pending' && scenario !== 'reader-race' && scenario !== 'reader-cross-source-pending') return Promise.resolve(detailResult(request, scenario.replace('reader-', '')));
+  if (scenario !== 'reader-pending' && scenario !== 'reader-race' && scenario !== 'reader-cross-source-pending' && scenario !== 'facts-seeded-parent-denied') return Promise.resolve(detailResult(request, scenario.replace('reader-', '')));
   return new Promise(resolve => { detailPending.push(kind => resolve(detailResult(request, kind))); });
+}
+const factListPending: ((kind: string) => void)[] = [];
+const factDetailPending: ((kind: string) => void)[] = [];
+const factControl = {
+  calls: [] as FactRequest[], detailCalls: [] as FactDetailRequest[],
+  release: (kind = 'success', index = factListPending.length - 1) => factListPending[index]?.(kind),
+  releaseDetail: (kind = 'success', index = factDetailPending.length - 1) => factDetailPending[index]?.(kind),
+};
+Object.assign(window, { __factFixture: factControl });
+function factListResult(request: FactRequest, kind: string): FactListResult {
+  if (kind === 'unconfigured') return { kind: 'unconfigured', reason: 'adapter-not-configured' };
+  if (kind === 'denied') return { kind: 'denied', reason: 'access-denied' };
+  if (kind === 'failure') return { kind: 'failure', reason: 'request-failed' };
+  if (kind === 'source-unavailable') return { kind: 'unavailable', reason: 'source-unavailable' };
+  return { kind: 'success', snapshot: { ...factSnapshot, sourceReference: request.source,
+    rows: kind === 'empty' ? [] : kind === 'context-unknown' ? factSnapshot.rows.map((fact, index) => index === 0 ? { ...fact, sourceDescription: 'mcp:remember', context: factRawContext } : fact) : factSnapshot.rows, capped: kind === 'cap', omitted: kind === 'partial' ? 2 : 0 } };
+}
+function loadFacts(request: FactRequest): Promise<FactListResult> {
+  factControl.calls.push(request);
+  if (scenario !== 'facts-list-pending' && scenario !== 'facts-seeded-denied') return Promise.resolve(factListResult(request, scenario.replace('facts-', '')));
+  return new Promise(resolve => factListPending.push(kind => resolve(factListResult(request, kind))));
+}
+function factDetailResult(request: FactDetailRequest, kind: string): FactDetailResult {
+  kind = kind.replace('detail-', '');
+  if (kind === 'seeded-denied' || kind === 'seeded-parent-denied') kind = 'denied';
+  if (kind === 'denied') return { kind: 'denied', reason: 'access-denied' };
+  if (kind === 'source-unavailable') return { kind: 'unavailable', reason: 'source-unavailable' };
+  if (kind === 'unavailable') return { kind: 'unavailable', reason: 'fact-unavailable' };
+  if (kind === 'failure') return { kind: 'failure', reason: 'request-failed' };
+  const [namespace, sourceId] = JSON.parse(request.source) as [string, string];
+  const fact = { ...(factRows.find(row => row.id === request.id) ?? factRows[0]), namespace, sourceId, id: request.id };
+  if (kind === 'context-unknown') return { kind: 'success', snapshot: { ...factDetailSnapshot, fact: { ...fact, sourceDescription: 'mcp:remember', context: factRawContext }, contextPage: { availability: 'unknown', page: null }, evidence: { availability: 'unknown', level: 'context-page', page: null, quote: null, location: null, body: { availability: 'unknown', sections: [] } } } };
+  const snapshot = { ...factDetailSnapshot, fact };
+  if (kind === 'context-protected') return { kind: 'success', snapshot: { ...snapshot, contextPage: { availability: 'available', page: factDetailSnapshot.contextPage.page }, evidence: { availability: 'protected', level: 'context-page', page: null, quote: null, location: null, body: { availability: 'unknown', sections: [] } } } };
+  if (kind === 'mismatch') return { kind: 'success', snapshot: { ...snapshot, evidence: { ...snapshot.evidence, availability: 'mismatch', location: null } } };
+  if (kind === 'partial-provenance' || kind === 'partial-body') return { kind: 'success', snapshot: { ...snapshot, evidence: { ...snapshot.evidence, availability: 'partial', quote: null, location: null, body: kind === 'partial-body' ? { ...snapshot.evidence.body, availability: 'partial' } : { availability: 'unknown', sections: [] } } } };
+  if (kind === 'protected') return { kind: 'success', snapshot: { ...snapshot, evidence: { ...snapshot.evidence, availability: 'protected', quote: null, location: null, body: { availability: 'protected', sections: [] } } } };
+  if (kind === 'missing') return { kind: 'success', snapshot: { ...snapshot, contextPage: { availability: 'missing', page: null }, evidence: { ...snapshot.evidence, availability: 'missing', page: null, quote: null, location: null, body: { availability: 'unknown', sections: [] } } } };
+  return { kind: 'success', snapshot };
+}
+function loadFactDetail(request: FactDetailRequest): Promise<FactDetailResult> {
+  factControl.detailCalls.push(request);
+  if (scenario !== 'facts-detail-pending') return Promise.resolve(factDetailResult(request, scenario.replace('facts-', '')));
+  return new Promise(resolve => factDetailPending.push(kind => resolve(factDetailResult(request, kind))));
 }
 let detectedZone: unknown = parameters.get('deviceTimeZone') ?? 'UTC';
 const detectZone = () => detectedZone;
@@ -87,6 +143,7 @@ function loadSources(): Promise<SourceListResult> {
   control.calls += 1;
   return new Promise((resolve, reject) => {
     control.release = (kind = 'success') => {
+      if (kind === 'without-alpha') { resolve({ kind: 'success', snapshot: { ...snapshot, sources: snapshot.sources.slice(1) } }); return; }
       if (kind === 'without-beta') { resolve({ kind: 'success', snapshot: { ...snapshot, sources: snapshot.sources.filter(source => source.id !== snapshot.sources[1].id), checkedAt: '2026-10-31T12:03:00Z' } }); return; }
       if (scenario === 'retry-reject') {
         reject(new Error('RAW_FIXTURE_ERROR: private-token-must-never-render'));
@@ -113,10 +170,14 @@ function Fixture() {
   const [settings, setSettings] = useState(() => resolveTimeZone(parameters.get('timeZone'), parameters.get('savedDeviceTimeZone')));
   return <TimeZoneProvider settings={settings} detect={detectZone}>
     <SourceScreen locale={locale} initialState={initialState} initialQuery={location.search} loadSources={scenario === 'unconfigured' ? undefined : loadSources}
-      initialPages={(scenario.startsWith('reader-') || scenario.startsWith('pages-')) && scenario !== 'pages-unseeded' ? initialPageResult : undefined}
-      loadPages={scenario.startsWith('reader-') || scenario.startsWith('pages-') ? loadPages : undefined}
-      loadDetail={scenario.startsWith('reader-') ? loadDetail : undefined}
-      initialDetail={scenario === 'reader-seeded-failure' ? { kind: 'failure', reason: 'request-failed' } : undefined}
+      initialPages={(scenario.startsWith('reader-') || scenario.startsWith('pages-') || scenario.startsWith('facts-')) && scenario !== 'pages-unseeded' && scenario !== 'facts-unseeded' ? initialPageResult : undefined}
+      loadPages={scenario.startsWith('reader-') || scenario.startsWith('pages-') || scenario.startsWith('facts-') ? loadPages : undefined}
+      loadDetail={scenario.startsWith('reader-') || scenario.startsWith('facts-') ? loadDetail : undefined}
+      loadFacts={scenario.startsWith('facts-') ? loadFacts : undefined}
+      initialFactDetail={scenario === 'facts-cold-seed' ? { kind: 'success', snapshot: { ...factDetailSnapshot, fact: { ...factDetailSnapshot.fact, content: 'UNVALIDATED_COLD_SEED' } } } : scenario === 'facts-seeded-detail' ? { kind: 'success', snapshot: factDetailSnapshot } : undefined}
+      initialFacts={scenario === 'facts-seeded-denied' || scenario === 'facts-seeded-parent-denied' ? { kind: 'success', snapshot: factSnapshot } : undefined}
+      loadFactDetail={scenario.startsWith('facts-') ? loadFactDetail : undefined}
+      initialDetail={scenario === 'facts-seeded-parent-denied' ? { kind: 'success', snapshot: { ...pageDetailSnapshot, body: { ...pageDetailSnapshot.body, sections: [{ id: 'compiled-truth', text: 'DISCARDED_SSR_PARENT_ONLY' }] } } } : scenario === 'reader-seeded-failure' ? { kind: 'failure', reason: 'request-failed' } : undefined}
       timeZoneControl={<TimeZoneControl locale={locale} preference={settings.preference} zones={availableTimeZones(settings.preference, settings.deviceZone)} action={(_previous, data) => {
         setSettings(resolveTimeZone(data.get('timeZone'), detectedZone));
         return { kind: 'saved' };

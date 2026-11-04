@@ -379,3 +379,29 @@ export function memoryKindLabel(locale: Locale, kind: string): string {
   const key = kind.toLowerCase();
   return Object.hasOwn(memoryKindMessages[locale], key) ? memoryKindMessages[locale][key as keyof typeof memoryKindMessages.en] : kind;
 }
+
+const factsEn = {
+  title: "Source memories", caption: "Memories in this Source", load: "Load memories", refresh: "Check memories again", content: "Content", kind: "Kind", source: "Source", sourceAttribution: "Source attribution", recordedAt: "Recorded at", recorder: "Recorded by",
+  pending: "Memories have not been read yet.", loading: "Reading memories…", empty: "No memories in the returned range.", complete: "Memories checked.", previous: "Showing the previous observation.",
+  coverage: "Up to 100 candidates · Total coverage unknown", rangeHelp: "Memory range help", rangeTitle: "Returned memories", rangeHelpText: "Only the latest 100 public candidates in this Source are checked. The public interface offers no additional pages. A missing ID may be outside this range; it does not establish deletion.",
+  observation: "Observation interval", partialProvenance: "Only part of this Page-level provenance is available.", partialBody: "Only part of the public source body is available.",
+  cap: "The 100-candidate limit was reached.", partial: "Some returned candidates could not be verified.", omitted: "Omitted candidates", notProvided: "Not provided", invalid: "Could not be verified", nullValue: "Explicitly empty",
+  sourceUnavailable: "This Source is no longer available. Check Sources again.",
+  denied: "You cannot view memories in this Source.", unavailable: "This memory was not confirmed in the current bounded range.", failure: "Memories could not be read. Check again manually.", busy: "Another GBrain read is running. Check again when it finishes.", unknown: "The public memory response could not be verified.", unconfigured: "The server connection is not ready to read memories.",
+  detailTitle: "Memory detail", heading: "Memory and provenance", detailLoading: "Reading memory…", close: "Close memory", fullReading: "Full view", returnToList: "Back to memories", skipToReader: "Skip to current memory",
+  contextPage: "Context Page", storedPage: "Stored Page", originalPage: "Source Page", pageQuote: "Page-level source quote", evidenceHelp: "Source quote help", evidenceTitle: "Quote from the context Page", evidenceHelpText: "This quote is provided by the linked context Page. It is not direct supporting evidence for this individual memory or a judgment of its truth. Highlighting checks the current public body and UTF-16 range.",
+  showInBody: "Find in body", body: "Source Page body", showBody: "Read source body", hideBody: "Hide source body", bodyUnknown: "The public source body could not be confirmed.", protected: "The public body is protected and was not restored.", mismatch: "The quote does not match the current source body.", failed: "This provenance field could not be read.", fieldDenied: "Access to this provenance is denied.", fieldUnknown: "This provenance could not be confirmed.", missing: "Not provided", originalFields: "Original memory fields", originalContext: "Original context", publicId: "Public memory ID",
+};
+const factsKo: typeof factsEn = {
+  title: "소스의 기억", caption: "이 소스의 기억", load: "기억 불러오기", refresh: "기억 새로 확인", content: "내용", kind: "종류", source: "소스", sourceAttribution: "출처", recordedAt: "기록 시각", recorder: "기록 주체",
+  pending: "아직 기억을 조회하지 않았어요.", loading: "기억을 읽고 있어요…", empty: "반환된 범위에 기억이 없어요.", complete: "기억을 확인했어요.", previous: "이전 관찰 결과를 표시하고 있어요.",
+  coverage: "최대 후보 100개 · 전체 범위 미확인", rangeHelp: "기억 조회 범위 도움말", rangeTitle: "반환된 기억", rangeHelpText: "이 소스의 최신 공개 후보를 최대 100개 확인해요. 공개 인터페이스는 추가 페이지를 제공하지 않아요. 찾지 못한 ID는 이 범위 밖일 수 있으며 삭제를 뜻하지 않아요.",
+  observation: "관찰 구간", partialProvenance: "페이지 수준 출처 정보의 일부만 제공됐어요.", partialBody: "공개 출처 본문의 일부만 제공됐어요.",
+  cap: "후보 100개 조회 제한에 도달했어요.", partial: "일부 반환 후보를 검증하지 못했어요.", omitted: "생략된 후보", notProvided: "정보 미제공", invalid: "검증할 수 없음", nullValue: "명시적으로 빈 값",
+  sourceUnavailable: "이 소스를 더 이상 사용할 수 없어요. 소스 목록을 다시 확인해 주세요.",
+  denied: "이 소스의 기억을 볼 권한이 없어요.", unavailable: "현재 제한된 조회 범위에서 이 기억을 확인하지 못했어요.", failure: "기억을 읽지 못했어요. 수동으로 다시 확인해 주세요.", busy: "다른 GBrain 조회가 진행 중이에요. 끝난 뒤 수동으로 다시 확인해 주세요.", unknown: "공개 기억 응답을 검증하지 못했어요.", unconfigured: "서버 연결이 아직 기억을 읽을 준비가 되지 않았어요.",
+  detailTitle: "기억 상세", heading: "기억과 출처", detailLoading: "기억을 읽고 있어요…", close: "기억 닫기", fullReading: "전체 보기", returnToList: "기억 목록으로 돌아가기", skipToReader: "현재 기억 읽기로 건너뛰기",
+  contextPage: "연결된 맥락 페이지", storedPage: "저장 페이지", originalPage: "출처 페이지", pageQuote: "페이지 수준 출처 인용", evidenceHelp: "출처 인용 도움말", evidenceTitle: "맥락 페이지가 제공한 인용", evidenceHelpText: "연결된 맥락 페이지가 제공한 인용이에요. 개별 기억의 직접 근거나 진위 판정이 아니에요. 현재 공개 본문과 UTF-16 위치가 일치할 때만 강조해요.",
+  showInBody: "본문에서 확인", body: "출처 페이지 본문", showBody: "출처 본문 읽기", hideBody: "출처 본문 접기", bodyUnknown: "공개 출처 본문을 확인하지 못했어요.", protected: "보호된 본문은 복원하지 않았어요.", mismatch: "인용 구절이 현재 출처 본문과 일치하지 않아요.", failed: "이 출처 정보를 읽지 못했어요.", fieldDenied: "이 출처 정보에 접근할 권한이 없어요.", fieldUnknown: "이 출처 정보를 확인하지 못했어요.", missing: "정보 미제공", originalFields: "기억의 원본 필드", originalContext: "원래 맥락", publicId: "공개 기억 ID",
+};
+export const factMessages = { en: factsEn, ko: factsKo };

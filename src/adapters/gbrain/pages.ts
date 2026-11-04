@@ -15,6 +15,9 @@ const supportedEnums: Record<string, readonly string[]> = {
   min_trust: ["user_confirmed", "operator_curated", "tool_observed", "agent_written", "unknown", "external_untrusted"],
   status: ["live", "all"],
   group: ["page"],
+  budget_policy: ["facts_first", "query_first"],
+  return_unit: ["chunk", "window", "section", "page", "auto"],
+  kind: ["metric", "event", "all"],
 };
 function safeProperty(value: unknown, type: string, name: string): boolean {
   if (!record(value) || value.type !== type || (value.description !== undefined && typeof value.description !== "string")) return false;
@@ -46,6 +49,7 @@ export function safeCapability(value: unknown, name: string, declared: Record<st
   const actualRequired = schema.required ?? [];
   if (!Array.isArray(actualRequired) || actualRequired.length !== required.length || required.some(key => !actualRequired.includes(key))) return false;
   if (name === "list_pages" && (!record(properties.sort) || !Array.isArray(properties.sort.enum) || !properties.sort.enum.includes("created_desc"))) return false;
+  if (name === "find_trajectory" && record(properties.kind) && Array.isArray(properties.kind.enum) && !properties.kind.enum.includes("all")) return false;
   return true;
 }
 export function hasSafePageCapabilities(value: unknown): boolean {

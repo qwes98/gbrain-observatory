@@ -7,7 +7,9 @@ export type ConnectionConfig = { executable: string; cwd: string };
 export type Command = "version" | "capabilities" | "sources" |
   { kind: "pages"; sourceId: string; offset: number } |
   { kind: "page"; sourceId: string; slug: string } |
-  { kind: "backlinks"; sourceId: string; slug: string };
+  { kind: "backlinks"; sourceId: string; slug: string } |
+  { kind: "facts"; sourceId: string } |
+  { kind: "trajectory"; sourceId: string; entity: string };
 export type ProcessCause = "not-found" | "permission" | "timeout" | "output-limit" | "failed";
 export type ExecutionResult = { ok: true; stdout: string } | { ok: false; cause: ProcessCause };
 const argv = {
@@ -16,6 +18,11 @@ const argv = {
 function commandArguments(command: Command): readonly string[] | null {
   if (typeof command === "string") return argv[command];
   if (!/^[a-z0-9-]{1,32}$/.test(command.sourceId)) return null;
+  if (command.kind === "facts") return ["call", "--source", command.sourceId, "recall", JSON.stringify({ source_id: command.sourceId, limit: 100 })];
+  if (command.kind === "trajectory") {
+    if (typeof command.entity !== "string" || !command.entity.length || command.entity.length > 512 || /[\u0000-\u001f\u007f]/.test(command.entity)) return null;
+    return ["call", "--source", command.sourceId, "find_trajectory", JSON.stringify({ entity_slug: command.entity, kind: "all", limit: 100 })];
+  }
   if (command.kind === "pages") {
     if (!Number.isSafeInteger(command.offset) || command.offset < 0 || command.offset >= 100 || command.offset % 10 !== 0) return null;
     return ["call", "list_pages", JSON.stringify({ source_id: command.sourceId, sort: "created_desc", limit: 10, offset: command.offset })];

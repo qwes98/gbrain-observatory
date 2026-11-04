@@ -24,6 +24,15 @@ const capabilities = [{ name: 'sources_list', scope: 'read', mutating: false, id
 capabilities.push({ name: 'get_backlinks', scope: 'read', mutating: false, idempotent: true, required_scopes: [],
   parameters: { slug: 'string', source_id: 'string?', limit: 'number?' },
   schema: { type: 'object', properties: { slug: { type: 'string' }, source_id: { type: 'string' }, limit: { type: 'number' } }, required: ['slug'] } });
+capabilities.push({ name: 'recall', scope: 'read', mutating: false, idempotent: true, required_scopes: [],
+  parameters: { source_id: 'string?', limit: 'number?' },
+  schema: { type: 'object', properties: { source_id: { type: 'string' }, limit: { type: 'number' } } } });
+capabilities.push({ name: 'find_trajectory', scope: 'read', mutating: false, idempotent: true, required_scopes: [],
+  parameters: { entity_slug: 'string?', kind: 'string?', limit: 'number?' },
+  schema: { type: 'object', properties: { entity_slug: { type: 'string' }, kind: { type: 'string' }, limit: { type: 'number' } } } });
+const factClaim = '원본 기억 🌿 / original public fact';
+const factQuote = '원문 인용 🌿 / exact original quote';
+const factBody = `😀 Intro\n${factQuote}\n<script>globalThis.factAttack=true</script>\n![tracking](https://attacker.invalid/fact-pixel)\n[unsafe](javascript:alert(1))\n[local](file:///private/file)`;
 const factsFence = '<!--- gbrain:facts:begin -->\n| # | claim | kind | confidence | visibility | notability | valid_from | valid_until | source | context |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n| 1 | 원본 기억 / original claim | fact | 0.9 | world | high | | | original | provenance text is not a Page FK |\n<!--- gbrain:facts:end -->';
 const source = { id: 'example', name: 'connection-private-source-name', local_path: '/connection-private/path',
   remote_url: 'https://secret-token@example.test/private', federated: true, strategy: null, page_count: 3, last_sync_at: null };
@@ -42,7 +51,7 @@ else if (args[0] === '--version') console.log(scenario === 'version' ? 'gbrain 9
 else if (args[0] === '--tools-json') {
   if (scenario === 'malformed') console.log('{not json');
   else if (scenario === 'missing') console.log('[]');
-  else { if (scenario === 'archived-default') capabilities[0].schema.properties.include_archived.default = true; if (scenario === 'unsafe') capabilities[0].mutating = true; if (scenario === 'pages-unsafe-list') capabilities[1].mutating = true; if (scenario === 'pages-unsafe-detail' || scenario === 'detail-unsafe-page') capabilities[2].mutating = true; if (scenario === 'detail-unsafe-backlinks') capabilities[3].mutating = true; console.log(JSON.stringify(capabilities)); }
+  else { if (scenario === 'archived-default') capabilities[0].schema.properties.include_archived.default = true; if (scenario === 'unsafe') capabilities[0].mutating = true; if (scenario === 'pages-unsafe-list') capabilities[1].mutating = true; if (scenario === 'pages-unsafe-detail' || scenario === 'detail-unsafe-page') capabilities[2].mutating = true; if (scenario === 'detail-unsafe-backlinks') capabilities[3].mutating = true; if (scenario === 'facts-unsafe-recall') capabilities[4].mutating = true; if (scenario === 'facts-unsafe-trajectory') capabilities[5].mutating = true; if (scenario === 'facts-trajectory-no-all') capabilities[5].schema.properties.kind.enum = ['metric', 'event']; console.log(JSON.stringify(capabilities)); }
 } else if (JSON.stringify(args) === JSON.stringify(['call', 'sources_list', '{}'])) {
   const rows = scenario === 'fields' ? [
     { ...source, id: 'folder-only', name: '동일 이름 / duplicate', local_path: '/원본/<script>/긴 경로', remote_url: null, federated: false, last_sync_at: '2026-10-27T03:00:00+09:00' },
@@ -51,6 +60,48 @@ else if (args[0] === '--tools-json') {
   ] : scenario === 'detail-cross-source' ? [source, { ...source, id: 'another', name: 'Cross Source' }] : [source];
   const respond = () => console.log(JSON.stringify(scenario === 'partial' ? { sources: [source], next_cursor: 'private-cursor' } : scenario === 'shape' ? { sources: [{}] } : { sources: scenario === 'empty' || scenario === 'pages-omitted' || scenario === 'detail-omitted-source' ? [] : rows }));
   if (scenario === 'slow' || scenario === 'concurrent') setTimeout(respond, scenario === 'concurrent' ? 2000 : 800); else respond();
+} else if (args[0] === 'call' && args[1] === '--source' && args[3] === 'recall') {
+  const input = JSON.parse(args[4]);
+  if (scenario === 'facts-failure') { process.stderr.write('private-facts-error secret-token'); process.exitCode = 12; }
+  else {
+    const fact = { id: 17, fact_id: '17', fact: factClaim, kind: 'belief', source_id: input.source_id, source: 'mcp:put_page', created_at: '2026-11-03T00:30:00Z', context: 'notes/fact-context — extracted from original', entity_slug: 'entity-example' };
+    let facts = scenario === 'facts-empty' ? [] : [fact];
+    if (scenario === 'facts-cap') facts = Array.from({ length: 100 }, (_, index) => ({ ...fact, id: index + 1, fact_id: String(index + 1) }));
+    if (scenario === 'facts-wrong-source') facts[0].source_id = 'other';
+    if (scenario === 'facts-missing-id') delete facts[0].fact_id;
+    if (scenario === 'facts-conflicting-id') facts[0].id = 99;
+    if (scenario === 'facts-duplicates') facts.push({ ...fact });
+    if (scenario === 'facts-invalid-time') facts[0].created_at = '2026-02-30T00:00:00Z';
+    if (scenario === 'facts-producer-sync') facts[0].source = 'sync:import';
+    if (scenario === 'facts-producer-upload') facts[0].source = 'file_upload';
+    if (scenario === 'facts-producer-code') facts[0].source = 'code_import';
+    if (scenario === 'facts-context-annotated') facts[0].context = '  notes/fact-context  — first note — second note  ';
+    if (scenario === 'facts-context-free-path') { facts[0].source = 'mcp:remember'; facts[0].context = 'notes/fact-context'; }
+    if (scenario === 'facts-context-wrong-case') facts[0].source = 'MCP:put_page';
+    if (scenario === 'facts-context-unknown-source') facts[0].source = 'custom:producer';
+    if (scenario === 'facts-context-source-suffix') facts[0].source = 'mcp:put_page ';
+    if (scenario === 'facts-context-missing-producer') delete facts[0].source;
+    if (scenario === 'facts-context-free-text') facts[0].context = 'chat 2026-06-12';
+    if (scenario === 'facts-context-no-path') facts[0].context = 'fact-context';
+    if (scenario === 'facts-context-spaced-path') facts[0].context = 'notes/fact context';
+    if (scenario === 'facts-context-empty-head') facts[0].context = ' — a provenance note';
+    if (scenario === 'facts-context-invalid-type') facts[0].context = { text: 'notes/fact-context' };
+    if (scenario === 'facts-context-invalid-slug') facts[0].context = 'notes/\u0000broken';
+    if (scenario === 'facts-context-null') facts[0].context = null;
+    if (scenario === 'facts-context-empty') facts[0].context = '';
+    if (scenario === 'facts-no-context') delete facts[0].context;
+    if (scenario.startsWith('facts-context-') && !['facts-context-wrong-source', 'facts-context-annotated'].includes(scenario) || scenario === 'facts-no-context') facts[0].entity_slug = null;
+    if (scenario === 'facts-invalid-entity') facts[0].entity_slug = { slug: 'not-a-public-entity-id' };
+    if (scenario === 'facts-empty-entity') facts[0].entity_slug = '';
+    const respond = () => console.log(JSON.stringify({ facts, total: facts.length, facts_order: 'newest', protocol_version: 1 }));
+    if (scenario === 'facts-slow') setTimeout(respond, 800); else respond();
+  }
+} else if (args[0] === 'call' && args[1] === '--source' && args[3] === 'find_trajectory') {
+  const point = { fact_id: '17', source_id: args[2], source_markdown_slug: 'notes/fact-stored' };
+  if (scenario === 'facts-trajectory-wrong-id') point.fact_id = '18';
+  if (scenario === 'facts-trajectory-wrong-source') point.source_id = 'other';
+  if (scenario === 'facts-budget-trajectory') { process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); }
+  else console.log(JSON.stringify({ points: scenario === 'facts-trajectory-empty' ? [] : [point], regressions: [], drift_score: null, schema_version: 1 }));
 } else if (args[0] === 'call' && args[1] === 'list_pages') {
   const input = JSON.parse(args[2]);
   if (scenario === 'pages-list-failure' || (scenario === 'pages-more-failure' && input.offset > 0)) { process.stderr.write('page-private-error secret-token'); process.exitCode = 12; }
@@ -66,6 +117,20 @@ else if (args[0] === '--tools-json') {
 } else if (args[0] === 'call' && args[1] === 'get_page') {
   const input = JSON.parse(args[2]);
   const index = Number(input.slug.split('-').at(-1));
+  if (scenario.startsWith('facts-')) {
+    if ((scenario === 'facts-budget-context' && input.slug === 'notes/fact-context') || (scenario === 'facts-budget-original' && input.slug === 'notes/fact-original')) { process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); }
+    else if (scenario === 'facts-page-failure') { process.stderr.write('private-fact-page-error'); process.exitCode = 12; }
+    else {
+      const detail = { slug: input.slug, source_id: input.source_id, title: `Verified ${input.slug}`, type: 'source', created_at: '2026-11-03T00:00:00Z', updated_at: '2026-11-03T00:00:00Z', compiled_truth: input.slug === 'notes/fact-original' ? factBody : 'Public context body', timeline: '', frontmatter: input.slug === 'notes/fact-context' ? { source_slug: 'notes/fact-original', source_quote: factQuote, source_quote_offset: [factBody.indexOf(factQuote), factBody.indexOf(factQuote) + factQuote.length] } : {} };
+      if (scenario === 'facts-quote-mismatch' && input.slug === 'notes/fact-context') detail.frontmatter.source_quote_offset[0] += 1;
+      if (scenario === 'facts-quote-missing' && input.slug === 'notes/fact-context') delete detail.frontmatter.source_quote;
+      if (scenario === 'facts-context-wrong-source' && input.slug === 'notes/fact-context') detail.source_id = 'other';
+      if (scenario === 'facts-original-wrong-slug' && input.slug === 'notes/fact-original') detail.slug = 'other';
+      if (scenario === 'facts-protected' && input.slug === 'notes/fact-original') { detail.body_omitted = true; detail.compiled_truth = 'PROTECTED_FACT_BODY_MUST_NOT_RENDER'; }
+      if (scenario === 'facts-partial' && input.slug === 'notes/fact-original') detail.partial = true;
+      console.log(JSON.stringify(detail));
+    }
+  } else
   if (scenario.startsWith('detail-')) {
     if (scenario === 'detail-budget') { process.on('SIGTERM', () => {}); setInterval(() => {}, 1000); }
     else if (scenario === 'detail-failure') { process.stderr.write('private-reader-error secret-token'); process.exitCode = 12; }

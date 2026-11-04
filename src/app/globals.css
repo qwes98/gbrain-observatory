@@ -11,6 +11,7 @@
 :root {
   --canvas: #f3f4f7;
   --paper: #fff;
+  --surface-muted: #f6f7fa;
   --line: #e3e6ec;
   --line-soft: #eceef2;
   --ink: #171b2b;
@@ -191,7 +192,7 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
 .source-metadata dl { margin-top: 8px; }
 .return-list, tbody th a { display: inline-block; min-height: 32px; padding-block: 5px; }
 .page-list { margin-top: 28px; min-width: 0; }
-.page-board { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+.page-board, .fact-board { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
 .pages-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; min-height: 60px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); border-radius: var(--radius) var(--radius) 0 0; }
 .pages-toolbar h2 { font-size: 1rem; font-weight: 650; margin: 0 4px 0 0; }
 .page-refresh { margin-left: auto; }
@@ -401,4 +402,51 @@ summary { cursor: pointer; min-height: 32px; padding: 4px 0; }
   body:has(.page-reader-panel) .source-sync { grid-column: auto; }
   body:has(.page-reader-panel) .workspace-controls { align-items: start; }
   body:has(.page-reader-panel) .time-zone-form { align-items: start; }
+}
+
+.fact-list { margin-top: 24px; min-width: 0; }
+.fact-list tbody th, .fact-list tbody td { padding-block: 5px; }
+.fact-list .table-footer { border-radius: 0 0 var(--radius) var(--radius); }
+.fact-load { display: inline-flex; align-items: center; min-height: 32px; margin-left: auto; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font-size: .8125rem; text-underline-offset: 3px; }
+.fact-list table { table-layout: fixed; min-width: 800px; width: 100%; }
+.fact-content-column { width: 42%; }
+.fact-kind-column { width: 12%; }
+.fact-source-column { width: 20%; }
+.fact-time-column { width: 26%; }
+.fact-list td, .fact-list th { height: 36px; font-size: .8125rem; }
+.fact-list thead th { white-space: normal; overflow-wrap: anywhere; }
+.fact-list tbody th > a { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fact-list td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fact-list tbody tr { cursor: pointer; }
+.fact-list tr.fact-row-selected { background: var(--accent-soft); }
+.fact-list tr.fact-row-selected > :first-child { box-shadow: inset 2px 0 var(--accent); }
+.fact-reader .reader-title { margin-bottom: 20px; }
+.fact-reading-content { max-width: 680px; min-width: 0; }
+.fact-memory { margin-left: 26px; padding-bottom: 16px; }
+.fact-evidence { background: var(--surface-muted); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px 14px; }
+.fact-evidence h3, .fact-source-body h3 { font-size: .875rem; font-weight: 650; margin: 0; }
+.fact-evidence blockquote { margin: 8px 0 12px; font-size: 1rem; line-height: 1.8; white-space: pre-wrap; }
+.fact-evidence button { font-size: .8125rem; }
+.fact-provenance-status { color: var(--secondary); font-size: .8125rem; line-height: 1.6; }
+.fact-original-page { font-size: .8125rem; line-height: 1.7; margin-block: 12px; }
+.fact-original-page a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.fact-source-body { border-top: 1px solid var(--line-soft); padding-top: 12px; }
+.fact-source-body summary { font-size: .8125rem; min-height: 32px; cursor: pointer; }
+.fact-source-body h3 { margin: 12px 0; }
+.fact-source-body .reader-prose + .reader-prose { margin-top: 20px; }
+.fact-reader.page-reader-full { max-width: 1080px; }
+.fact-reader.page-reader-full .fact-reading-content { border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; background: var(--paper); }
+@media (min-width: 1100px) {
+  .fact-reader.page-reader-full .fact-reading-content { grid-column: 1; }
+}
+@media (max-width: 760px), (any-pointer: coarse) {
+  .fact-load, .fact-evidence button, .fact-source-body summary { min-height: 44px; }
+}
+@media (max-width: 760px) {
+  .fact-reader.page-reader-full .fact-reading-content { padding: 16px; border-radius: 12px; }
+  .fact-memory { margin-left: 0; }
+}
+.fact-list tbody th > a { min-height: 24px; padding-block: 0; line-height: 24px; }
+@media (max-width: 760px), (any-pointer: coarse) {
+  .fact-list tbody th > a { min-height: 44px; line-height: 44px; }
 }

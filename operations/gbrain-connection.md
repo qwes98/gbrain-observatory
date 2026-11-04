@@ -160,3 +160,33 @@ main Page. Visible reference coverage remains capped at ten candidates with tota
 coverage unknown; public window excerpts and failed references keep their distinct
 states. The review patch uses focused file-level regressions; aggregate verification
 is recorded separately by the coordinating build workflow.
+
+
+## Source-scoped Facts and provenance
+
+The Fact adapter uses the same audited executable/cwd, version/capability checks,
+current Source authority, shared execution lease, process limits and 45-second
+acquisition deadline. Its fixed public calls are `call --source <S> recall` with
+`{source_id:<S>,limit:100}`, and optional `find_trajectory` with the exact Entity,
+`kind: "all"` and `limit: 100`. The public interface supplies no Fact ID filter,
+offset or cursor. Details re-read this bounded candidate range and select the
+exact public Fact ID and Source; absence does not establish deletion.
+
+Context and stored Pages are separate relationships. Exact Source/slug reads
+verify candidate endpoints. A context Page's source quote is highlighted only
+when its UTF-16 `[start,end)` matches the current public `compiled_truth`. It is
+Page-level provenance, not direct evidence for the individual Fact. Protected
+bodies are discarded, and arbitrary local paths or URLs are never fetched.
+
+The authenticated `/api/facts` and `/api/fact-detail` POST routes share these
+queries with native/server rendering. Responses remain private/no-store. No
+additional production settings, services or upstream changes are required.
+Live verification evidence must omit private IDs, slugs, memory content and raw
+process/browser output. Local live Adapter/UI results do not imply deployed
+HTTPS or physical-device acceptance.
+
+A recall context is not an unconditional Page reference. On the pinned release,
+only the four documented extraction producers and a path-shaped context head
+qualify for an exact Page read. Other context values remain original metadata with
+unknown linkage and cannot attribute a same-named Page or quote. Producer names
+are provenance metadata, never registered Source IDs or recorder identities.
