@@ -23,6 +23,7 @@ Desktop.ini
 # Application dependencies and generated output
 node_modules/
 .next/
+/next-env.d.ts
 out/
 test-results/
 playwright-report/

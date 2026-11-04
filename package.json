@@ -7,7 +7,7 @@
     "dev": "next dev --hostname 127.0.0.1 --port 3443",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1 --port 3443",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
     "test": "playwright test",
     "test:operations": "node --test tests/operations/*.test.mjs",
